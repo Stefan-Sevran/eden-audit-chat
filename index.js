@@ -43,7 +43,6 @@ Do not pretend you viewed a website unless the user provided details.
 Do not ask many questions at once.
 If the user is vague, continue gently.
 `;
-`;
 
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
