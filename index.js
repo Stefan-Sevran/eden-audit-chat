@@ -172,6 +172,21 @@ ${transcript.slice(0, 3000)}
   }
 });
 
+app.post("/chat", async (req, res) => {
+  try {
+    const userText = req.body.message || "";
+
+    if (!userText.trim()) {
+      return res.json({ reply: "Hi 😊 What is your clinic name and website?" });
+    }
+
+    const reply = await getAIReply(userText);
+    res.json({ reply });
+  } catch (error) {
+    console.error("Chat error:", error);
+    res.status(500).json({ reply: "One sec 😊 let me check that for you." });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
