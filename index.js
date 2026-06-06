@@ -1,5 +1,4 @@
 const express = require("express");
-
 const cors = require("cors");
 
 const app = express();
@@ -11,27 +10,33 @@ const VERIFY_TOKEN = "eden_verify_123";
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-const SYSTEM_PROMPT = `
-You are Eden Clinic Growth Audit AI.
+const sessions = {};
 
-You help clinic owners discover lost patients, missed bookings, and revenue leaks.
+const SYSTEM_PROMPT = `
+You are Eden Clinic Network's AI Clinic Growth Auditor.
+
+You help clinic owners discover hidden lost revenue from missed calls, slow replies, weak follow-up, poor booking conversion, unclear offers, weak trust signals, and overloaded staff.
 
 Style:
-Reply like a sharp, friendly clinic growth consultant.
-Use 1-3 short sentences.
+Reply like an elite clinic growth consultant.
+Be warm, sharp, calm, practical, and commercially intelligent.
+Use 1-4 short sentences.
 Ask only ONE simple next-step question.
 No jargon.
-Be warm, direct, and practical.
 
 Goal:
-Guide the clinic owner through a short audit and then show the biggest opportunity to recover patients.
+Guide the clinic owner through a short clinic growth audit.
+Remember what they already told you.
+Identify their biggest patient/revenue leak.
+Estimate missed bookings when enough information is available.
+Build trust in Eden's AI + Human Team system.
 
 Audit flow:
-1. Ask for the clinic name, city, and website or Facebook page.
+1. Ask for clinic name, city, and website/Facebook page.
 2. Ask what kind of clinic it is.
-3. Ask how fast they usually reply to Facebook Messenger enquiries.
+3. Ask how fast they usually reply to Messenger/WhatsApp enquiries.
 4. Ask how many missed calls or unanswered enquiries they estimate per week.
-5. Ask whether they currently follow up with patients who do not book.
+5. Ask whether they follow up with patients who do not book.
 6. Give a short audit summary.
 
 When giving the audit summary, include:
@@ -46,6 +51,9 @@ Do not give medical advice.
 Do not pretend you viewed a website unless the user provided details.
 Do not ask many questions at once.
 If the user is vague, continue gently.
+Do not ask for contact details too early.
+
+Only ask for name and WhatsApp/email when the clinic owner shows strong interest, such as asking about pricing, setup, implementation, or saying they want Eden's help.
 `;
 
 app.get("/webhook", (req, res) => {
@@ -73,7 +81,7 @@ app.post("/webhook", async (req, res) => {
       const senderId = messaging.sender.id;
       const userText = messaging.message.text;
 
-      const aiReply = await getAIReply(userText);
+      const aiReply = await getAIReply(userText, senderId);
       await sendMessage(senderId, aiReply);
     }
   } catch (error) {
@@ -83,8 +91,19 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-async function getAIReply(userText) {
+async function getAIReply(userText, sessionId = "default") {
   try {
+    if (!sessions[sessionId]) {
+      sessions[sessionId] = [];
+    }
+
+    sessions[sessionId].push({
+      role: "user",
+      content: userText
+    });
+
+    sessions[sessionId] = sessions[sessionId].slice(-20);
+
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -95,7 +114,7 @@ async function getAIReply(userText) {
         model: "gpt-4.1-mini",
         input: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userText }
+          ...sessions[sessionId]
         ]
       })
     });
@@ -111,6 +130,13 @@ async function getAIReply(userText) {
     if (!reply || reply.trim() === "") {
       reply = "Got you 😊 what would you like help with?";
     }
+
+    sessions[sessionId].push({
+      role: "assistant",
+      content: reply
+    });
+
+    sessions[sessionId] = sessions[sessionId].slice(-20);
 
     return reply.trim();
   } catch (error) {
@@ -139,6 +165,7 @@ async function sendMessage(senderId, text) {
   const data = await response.json();
   console.log("Send response:", data);
 }
+
 app.post("/eleven-postcall", async (req, res) => {
   try {
     const data = req.body;
@@ -179,12 +206,13 @@ ${transcript.slice(0, 3000)}
 app.post("/chat", async (req, res) => {
   try {
     const userText = req.body.message || "";
+    const sessionId = req.body.sessionId || "website-default";
 
     if (!userText.trim()) {
       return res.json({ reply: "Hi 😊 What is your clinic name and website?" });
     }
 
-    const reply = await getAIReply(userText);
+    const reply = await getAIReply(userText, sessionId);
     res.json({ reply });
   } catch (error) {
     console.error("Chat error:", error);
