@@ -66,6 +66,91 @@ Build trust in Eden's AI + Human Team system.
 Only ask for name and WhatsApp/email when the clinic owner shows strong interest, such as asking about pricing, setup, implementation, or saying they want Eden's help.
 `;
 
+function ensureProfile(sessionId) {
+  if (!clinicProfiles[sessionId]) {
+    clinicProfiles[sessionId] = {
+      clinicName: "",
+      city: "",
+      clinicType: "",
+      website: "",
+      whatsapp: "",
+      email: "",
+      buyingIntent: ""
+    };
+  }
+}
+
+function updateProfileFromText(sessionId, text) {
+  ensureProfile(sessionId);
+
+  const profile = clinicProfiles[sessionId];
+  const lower = text.toLowerCase();
+
+  const emailMatch = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+  if (emailMatch) profile.email = emailMatch[0];
+
+  const phoneMatch = text.match(/(\+?\d[\d\s().-]{7,}\d)/);
+  if (phoneMatch) profile.whatsapp = phoneMatch[0];
+
+  const websiteMatch = text.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|ph|net|org|clinic|live)[^\s]*)/i);
+  if (websiteMatch) profile.website = websiteMatch[0];
+
+  const clinicPatterns = [
+    /my clinic is ([^.\n]+)/i,
+    /clinic name is ([^.\n]+)/i,
+    /clinic name[:\s]+([^.\n]+)/i,
+    /we are ([^.\n]+)/i
+  ];
+
+  for (const pattern of clinicPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      profile.clinicName = match[1].trim();
+      break;
+    }
+  }
+
+  if (lower.includes("cebu")) profile.city = "Cebu";
+  if (lower.includes("manila")) profile.city = "Manila";
+  if (lower.includes("davao")) profile.city = "Davao";
+  if (lower.includes("makati")) profile.city = "Makati";
+  if (lower.includes("quezon")) profile.city = "Quezon City";
+  if (lower.includes("pattaya")) profile.city = "Pattaya";
+  if (lower.includes("bangkok")) profile.city = "Bangkok";
+
+  if (lower.includes("dental") || lower.includes("dentist")) profile.clinicType = "Dental clinic";
+  if (lower.includes("aesthetic") || lower.includes("beauty")) profile.clinicType = "Aesthetic clinic";
+  if (lower.includes("derma") || lower.includes("skin")) profile.clinicType = "Dermatology clinic";
+  if (lower.includes("medical clinic")) profile.clinicType = "Medical clinic";
+
+  if (
+    lower.includes("interested") ||
+    lower.includes("pricing") ||
+    lower.includes("price") ||
+    lower.includes("setup") ||
+    lower.includes("start") ||
+    lower.includes("help")
+  ) {
+    profile.buyingIntent = "Interested";
+  }
+}
+
+function getProfileContext(sessionId) {
+  ensureProfile(sessionId);
+  const p = clinicProfiles[sessionId];
+
+  return `
+Known clinic information:
+Clinic name: ${p.clinicName || "Unknown"}
+City: ${p.city || "Unknown"}
+Clinic type: ${p.clinicType || "Unknown"}
+Website/Facebook: ${p.website || "Unknown"}
+WhatsApp: ${p.whatsapp || "Unknown"}
+Email: ${p.email || "Unknown"}
+Buying intent: ${p.buyingIntent || "Unknown"}
+`;
+}
+
 function hasLeadSignal(text) {
   const lower = text.toLowerCase();
 
@@ -93,46 +178,6 @@ function formatTranscript(session) {
     .join("\n\n");
 }
 
-function ensureProfile(sessionId) {
-  if (!clinicProfiles[sessionId]) {
-    clinicProfiles[sessionId] = {
-      clinicName: "",
-      city: "",
-      clinicType: "",
-      website: "",
-      whatsapp: "",
-      email: ""
-    };
-  }
-}
-
-function updateProfileFromText(sessionId, text) {
-  ensureProfile(sessionId);
-
-  const profile = clinicProfiles[sessionId];
-
-  const emailMatch = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
-  if (emailMatch) profile.email = emailMatch[0];
-
-  const phoneMatch = text.match(/(\+?\d[\d\s().-]{7,}\d)/);
-  if (phoneMatch) profile.whatsapp = phoneMatch[0];
-}
-
-function getProfileContext(sessionId) {
-  ensureProfile(sessionId);
-
-  const p = clinicProfiles[sessionId];
-
-  return `
-Clinic name: ${p.clinicName || "Unknown"}
-City: ${p.city || "Unknown"}
-Clinic type: ${p.clinicType || "Unknown"}
-Website: ${p.website || "Unknown"}
-WhatsApp: ${p.whatsapp || "Unknown"}
-Email: ${p.email || "Unknown"}
-`;
-}
-
 async function sendTelegram(text) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.log("Telegram env vars missing.");
@@ -149,9 +194,10 @@ async function sendTelegram(text) {
   });
 }
 
-async function createLeadSummary(session) {
+async function createLeadSummary(session, sessionId) {
   try {
     const transcript = formatTranscript(session);
+    const profileContext = getProfileContext(sessionId);
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -167,6 +213,8 @@ async function createLeadSummary(session) {
             content: `
 Create a short internal lead summary for Eden Clinic Network.
 
+Use the known clinic information and transcript.
+
 Return:
 Clinic:
 City:
@@ -175,6 +223,7 @@ Contact details:
 Main problems:
 Estimated opportunity:
 Buying intent score 1-10:
+Lead temperature: HOT/WARM/COLD
 Recommended follow-up:
 
 If unknown, write Unknown.
@@ -182,7 +231,7 @@ If unknown, write Unknown.
           },
           {
             role: "user",
-            content: transcript
+            content: profileContext + "\n\nTranscript:\n" + transcript
           }
         ]
       })
@@ -208,14 +257,18 @@ async function maybeSendLeadAlert(sessionId, latestUserText) {
   alertedSessions[sessionId] = true;
 
   const session = sessions[sessionId] || [];
-  const summary = await createLeadSummary(session);
+  const summary = await createLeadSummary(session, sessionId);
   const transcript = formatTranscript(session);
+  const profileContext = getProfileContext(sessionId);
 
   const message = `
 🔥 NEW CLINIC AUDIT LEAD
 
 Session:
 ${sessionId}
+
+CLINIC PROFILE
+${profileContext}
 
 SUMMARY
 ${summary}
@@ -269,17 +322,7 @@ async function getAIReply(userText, sessionId = "default") {
       sessions[sessionId] = [];
     }
 
-    if (!clinicProfiles[sessionId]) {
-  clinicProfiles[sessionId] = {
-    clinicName: "",
-    city: "",
-    clinicType: "",
-    website: "",
-    whatsapp: "",
-    email: ""
-  };
-    }
-
+    ensureProfile(sessionId);
     updateProfileFromText(sessionId, userText);
 
     sessions[sessionId].push({
@@ -288,6 +331,8 @@ async function getAIReply(userText, sessionId = "default") {
     });
 
     sessions[sessionId] = sessions[sessionId].slice(-50);
+
+    const profileContext = getProfileContext(sessionId);
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -298,7 +343,10 @@ async function getAIReply(userText, sessionId = "default") {
       body: JSON.stringify({
         model: "gpt-4.1-mini",
         input: [
-          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "system",
+            content: SYSTEM_PROMPT + "\n\n" + profileContext
+          },
           ...sessions[sessionId]
         ]
       })
