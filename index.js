@@ -102,7 +102,7 @@ async function getAIReply(userText, sessionId = "default") {
       content: userText
     });
 
-    sessions[sessionId] = sessions[sessionId].slice(-20);
+    sessions[sessionId] = sessions[sessionId].slice(-50);
 
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -136,7 +136,7 @@ async function getAIReply(userText, sessionId = "default") {
       content: reply
     });
 
-    sessions[sessionId] = sessions[sessionId].slice(-20);
+    sessions[sessionId] = sessions[sessionId].slice(-50);
 
     return reply.trim();
   } catch (error) {
