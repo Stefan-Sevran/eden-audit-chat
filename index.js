@@ -185,7 +185,17 @@ async function sendTelegram(text) {
     return;
   }
 
-  async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, transcript }) {
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      text: text.slice(0, 3900)
+    })
+  });
+}
+
+async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, transcript }) {
   if (!GOOGLE_SCRIPT_URL) {
     console.log("Google Script URL missing.");
     return;
@@ -208,16 +218,6 @@ async function sendTelegram(text) {
   } catch (error) {
     console.error("Google Sheets save error:", error);
   }
-  }
-
-  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: text.slice(0, 3900)
-    })
-  });
 }
 
 async function createLeadSummary(session, sessionId) {
