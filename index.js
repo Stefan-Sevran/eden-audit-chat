@@ -9,8 +9,11 @@ app.use(express.json());
 const VERIFY_TOKEN = "eden_verify_123";
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const sessions = {};
+const alertedSessions = {};
 
 const SYSTEM_PROMPT = `
 You are Eden Clinic Network's AI Clinic Growth Auditor.
@@ -50,7 +53,6 @@ Do not pretend to be Filipino.
 
 Formatting:
 When useful, split your reply into 2-3 short paragraphs separated by blank lines.
-This lets the website show the answer like natural chat bubbles.
 Do not use bullet points unless giving the final audit summary.
 
 Goal:
@@ -60,34 +62,130 @@ Identify their biggest patient/revenue leak.
 Estimate missed bookings when enough information is available.
 Build trust in Eden's AI + Human Team system.
 
-Audit flow:
-1. Ask for clinic name, city, and website/Facebook page.
-2. Ask what kind of clinic it is.
-3. Ask how fast they usually reply to Messenger/WhatsApp enquiries.
-4. Ask how many missed calls or unanswered enquiries they estimate per week.
-5. Ask whether they follow up with patients who do not book.
-6. Give a short audit summary.
-
-Important:
-Do not rush the audit flow.
-Do not ask many questions at once.
-Do not give medical advice.
-Do not pretend you viewed a website unless the user provided details.
-If the user is vague, continue gently.
-Do not ask for contact details too early.
-
-When giving the audit summary, include:
-- Clinic Growth Score: 0-100
-- Biggest patient leak
-- Fastest improvement
-- Estimated monthly recovered bookings
-- Suggested next step
-
 Only ask for name and WhatsApp/email when the clinic owner shows strong interest, such as asking about pricing, setup, implementation, or saying they want Eden's help.
-
-When asking for contact details, say it softly:
-"Would you like the Eden team to look at this personally? If yes, you can send your name and WhatsApp/email, and we'll follow up with a practical clinic growth audit."
 `;
+
+function hasLeadSignal(text) {
+  const lower = text.toLowerCase();
+
+  const hasEmail = /[^\s@]+@[^\s@]+\.[^\s@]+/.test(text);
+  const hasPhone = /(\+?\d[\d\s().-]{7,}\d)/.test(text);
+
+  const hasIntent =
+    lower.includes("interested") ||
+    lower.includes("how much") ||
+    lower.includes("pricing") ||
+    lower.includes("price") ||
+    lower.includes("setup") ||
+    lower.includes("start") ||
+    lower.includes("help us") ||
+    lower.includes("contact") ||
+    lower.includes("whatsapp") ||
+    lower.includes("email");
+
+  return hasEmail || hasPhone || hasIntent;
+}
+
+function formatTranscript(session) {
+  return session
+    .map(item => `${item.role.toUpperCase()}: ${item.content}`)
+    .join("\n\n");
+}
+
+async function sendTelegram(text) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log("Telegram env vars missing.");
+    return;
+  }
+
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      text: text.slice(0, 3900)
+    })
+  });
+}
+
+async function createLeadSummary(session) {
+  try {
+    const transcript = formatTranscript(session);
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + OPENAI_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        input: [
+          {
+            role: "system",
+            content: `
+Create a short internal lead summary for Eden Clinic Network.
+
+Return:
+Clinic:
+City:
+Clinic type:
+Contact details:
+Main problems:
+Estimated opportunity:
+Buying intent score 1-10:
+Recommended follow-up:
+
+If unknown, write Unknown.
+`
+          },
+          {
+            role: "user",
+            content: transcript
+          }
+        ]
+      })
+    });
+
+    const data = await response.json();
+
+    return (
+      data.output_text ||
+      data.output?.[0]?.content?.[0]?.text ||
+      "Lead summary unavailable."
+    ).trim();
+  } catch (error) {
+    console.error("Lead summary error:", error);
+    return "Lead summary unavailable.";
+  }
+}
+
+async function maybeSendLeadAlert(sessionId, latestUserText) {
+  if (alertedSessions[sessionId]) return;
+  if (!hasLeadSignal(latestUserText)) return;
+
+  alertedSessions[sessionId] = true;
+
+  const session = sessions[sessionId] || [];
+  const summary = await createLeadSummary(session);
+  const transcript = formatTranscript(session);
+
+  const message = `
+🔥 NEW CLINIC AUDIT LEAD
+
+Session:
+${sessionId}
+
+SUMMARY
+${summary}
+
+FULL TRANSCRIPT
+--------------------
+${transcript}
+`;
+
+  await sendTelegram(message);
+}
 
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
@@ -171,6 +269,8 @@ async function getAIReply(userText, sessionId = "default") {
 
     sessions[sessionId] = sessions[sessionId].slice(-50);
 
+    await maybeSendLeadAlert(sessionId, userText);
+
     return reply.trim();
   } catch (error) {
     console.error("OpenAI error:", error);
@@ -220,14 +320,7 @@ Status: Needs clinic confirmation
 ${transcript.slice(0, 3000)}
 `;
 
-    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: process.env.TELEGRAM_CHAT_ID,
-        text: message
-      })
-    });
+    await sendTelegram(message);
 
     res.status(200).send("ok");
   } catch (err) {
