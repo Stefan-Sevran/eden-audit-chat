@@ -14,6 +14,7 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const sessions = {};
 const alertedSessions = {};
+const clinicProfiles = {};
 
 const SYSTEM_PROMPT = `
 You are Eden Clinic Network's AI Clinic Growth Auditor.
@@ -226,6 +227,17 @@ async function getAIReply(userText, sessionId = "default") {
   try {
     if (!sessions[sessionId]) {
       sessions[sessionId] = [];
+    }
+
+    if (!clinicProfiles[sessionId]) {
+  clinicProfiles[sessionId] = {
+    clinicName: "",
+    city: "",
+    clinicType: "",
+    website: "",
+    whatsapp: "",
+    email: ""
+  };
     }
 
     sessions[sessionId].push({
