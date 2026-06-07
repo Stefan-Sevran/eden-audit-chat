@@ -93,6 +93,46 @@ function formatTranscript(session) {
     .join("\n\n");
 }
 
+function ensureProfile(sessionId) {
+  if (!clinicProfiles[sessionId]) {
+    clinicProfiles[sessionId] = {
+      clinicName: "",
+      city: "",
+      clinicType: "",
+      website: "",
+      whatsapp: "",
+      email: ""
+    };
+  }
+}
+
+function updateProfileFromText(sessionId, text) {
+  ensureProfile(sessionId);
+
+  const profile = clinicProfiles[sessionId];
+
+  const emailMatch = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+  if (emailMatch) profile.email = emailMatch[0];
+
+  const phoneMatch = text.match(/(\+?\d[\d\s().-]{7,}\d)/);
+  if (phoneMatch) profile.whatsapp = phoneMatch[0];
+}
+
+function getProfileContext(sessionId) {
+  ensureProfile(sessionId);
+
+  const p = clinicProfiles[sessionId];
+
+  return `
+Clinic name: ${p.clinicName || "Unknown"}
+City: ${p.city || "Unknown"}
+Clinic type: ${p.clinicType || "Unknown"}
+Website: ${p.website || "Unknown"}
+WhatsApp: ${p.whatsapp || "Unknown"}
+Email: ${p.email || "Unknown"}
+`;
+}
+
 async function sendTelegram(text) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.log("Telegram env vars missing.");
@@ -239,6 +279,8 @@ async function getAIReply(userText, sessionId = "default") {
     email: ""
   };
     }
+
+    updateProfileFromText(sessionId, userText);
 
     sessions[sessionId].push({
       role: "user",
