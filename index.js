@@ -329,6 +329,16 @@ ${transcript.slice(0, 3000)}
   }
 });
 
+app.get("/test-telegram", async (req, res) => {
+  try {
+    await sendTelegram("✅ Eden Telegram test alert works.");
+    res.send("Telegram test sent");
+  } catch (err) {
+    console.error("Telegram test error:", err);
+    res.status(500).send("Telegram test failed");
+  }
+});
+
 app.post("/chat", async (req, res) => {
   try {
     const userText = req.body.message || "";
