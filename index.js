@@ -11,6 +11,7 @@ const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
 
 const sessions = {};
 const alertedSessions = {};
@@ -184,6 +185,31 @@ async function sendTelegram(text) {
     return;
   }
 
+  async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, transcript }) {
+  if (!GOOGLE_SCRIPT_URL) {
+    console.log("Google Script URL missing.");
+    return;
+  }
+
+  try {
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        profileContext,
+        summary,
+        transcript,
+        timestamp: new Date().toISOString()
+      })
+    });
+
+    console.log("Lead saved to Google Sheets.");
+  } catch (error) {
+    console.error("Google Sheets save error:", error);
+  }
+  }
+
   await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -279,6 +305,12 @@ ${transcript}
 `;
 
   await sendTelegram(message);
+  await saveLeadToGoogleSheets({
+  sessionId,
+  profileContext,
+  summary,
+  transcript
+});
 }
 
 app.get("/webhook", (req, res) => {
