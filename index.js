@@ -355,7 +355,7 @@ color: #222;
 
   <h1>Clinic Revenue Rescue Audit™</h1>
 
-  <h2>${clinic || "Your Clinic"}</h2>
+  <h2>${clinic || audit.clinicName || "Your Clinic"}</h2>
 
   <div style="
 background:#eef4ff;
