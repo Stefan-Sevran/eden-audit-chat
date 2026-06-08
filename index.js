@@ -399,6 +399,29 @@ ${audit.leakExplanation || "Patients who try to contact your clinic may not alwa
 
 </div>
 
+<h2>Eden Fit Score</h2>
+
+<div style="
+background:#f3f4f6;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+">
+
+<div style="
+font-size:36px;
+font-weight:bold;
+color:#7c3aed;
+">
+${audit.fitScore}/100
+</div>
+
+<p>
+How suitable your clinic appears for Eden's recovery systems.
+</p>
+
+</div>
+
   <h2>Top Opportunities</h2>
 
   <ul>
@@ -406,6 +429,25 @@ ${audit.leakExplanation || "Patients who try to contact your clinic may not alwa
     <li>${audit.opportunity2}</li>
     <li>${audit.opportunity3}</li>
   </ul>
+
+  <h2>Expected Outcome</h2>
+
+<div style="
+background:#eff6ff;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+">
+
+<p style="
+font-size:24px;
+font-weight:bold;
+color:#2563eb;
+">
+${audit.expectedOutcome}
+</p>
+
+</div>
 
 <h2>30-Day Revenue Rescue Plan</h2>
 
@@ -420,6 +462,21 @@ margin-bottom:20px;
 <p><strong>Week 2:</strong> Add fast follow-up for missed inquiries.</p>
 <p><strong>Week 3:</strong> Improve Messenger and booking response flow.</p>
 <p><strong>Week 4:</strong> Review recovered bookings and revenue impact.</p>
+
+</div>
+
+<h2>30-Day Action Plan</h2>
+
+<div style="
+background:#fafaf9;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+">
+
+<p>
+${audit.actionPlan}
+</p>
 
 </div>
 
