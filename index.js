@@ -248,6 +248,9 @@ Return:
 {
   "score": 72,
   "revenue": "₱45,000 - ₱180,000/month",
+  "biggestLeak": "Missed Calls",
+  "impact": "5 missed calls per week may represent ₱20,000 - ₱70,000/month in lost revenue.",
+  "edenFit": 92,
   "opportunity1": "...",
   "opportunity2": "...",
   "opportunity3": "..."
@@ -348,6 +351,15 @@ ${audit.revenue}
 </div>
 
 </div>
+
+<h2>Biggest Revenue Leak</h2>
+<p>${audit.biggestLeak}</p>
+
+<h2>Estimated Impact</h2>
+<p>${audit.impact}</p>
+
+<h2>Eden Compatibility Score</h2>
+<p>${audit.edenFit}/100</p>
 
   <h2>Top Opportunities</h2>
 
