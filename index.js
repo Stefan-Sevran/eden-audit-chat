@@ -296,6 +296,10 @@ async function createLeadSummary(session, sessionId) {
     const transcript = formatTranscript(session);
     const profileContext = getProfileContext(sessionId);
 
+    const audit = await generateAudit(profileContext, transcript);
+
+console.log("Audit:", audit);
+
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
