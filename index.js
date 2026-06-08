@@ -311,20 +311,29 @@ Return ONLY valid JSON:
 
     const data = await response.json();
 
-    return JSON.parse(
-      data.choices[0].message.content
-    );
+    const rawAudit = data.choices[0].message.content
+  .replace(/```json/g, "")
+  .replace(/```/g, "")
+  .trim();
+
+return JSON.parse(rawAudit);
 
   } catch (error) {
     console.error("Audit generation error:", error);
 
     return {
-      score: 50,
-      revenue: "Unknown",
-      opportunity1: "Missed Calls",
-      opportunity2: "Slow Replies",
-      opportunity3: "Weak Follow-Up"
-    };
+  score: 50,
+  revenue: "Unknown",
+  biggestLeak: "Missed Calls",
+  leakExplanation: "Patients may be trying to contact the clinic but not receiving a fast enough response.",
+  fitScore: 70,
+  expectedOutcome: "Potential recovery depends on call volume and inquiry handling.",
+  urgency: "MEDIUM",
+  actionPlan: "Track missed calls, improve reply speed, and add follow-up for unbooked inquiries.",
+  opportunity1: "Missed Calls",
+  opportunity2: "Slow Replies",
+  opportunity3: "Weak Follow-Up"
+};
   }
 }
 
