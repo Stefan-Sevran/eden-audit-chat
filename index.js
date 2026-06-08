@@ -229,6 +229,68 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
   }
 }
 
+async function generateAudit(profileContext, transcript) {
+  try {
+
+    const prompt = `
+You are Eden Clinic Network's senior clinic growth consultant.
+
+Analyze this clinic conversation and return ONLY valid JSON.
+
+Clinic Profile:
+${profileContext}
+
+Conversation:
+${transcript}
+
+Return:
+
+{
+  "score": 72,
+  "revenue": "₱45,000 - ₱180,000/month",
+  "opportunity1": "...",
+  "opportunity2": "...",
+  "opportunity3": "..."
+}
+`;
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + OPENAI_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3
+      })
+    });
+
+    const data = await response.json();
+
+    return JSON.parse(
+      data.choices[0].message.content
+    );
+
+  } catch (error) {
+    console.error("Audit generation error:", error);
+
+    return {
+      score: 50,
+      revenue: "Unknown",
+      opportunity1: "Missed Calls",
+      opportunity2: "Slow Replies",
+      opportunity3: "Weak Follow-Up"
+    };
+  }
+}
+
 async function createLeadSummary(session, sessionId) {
   try {
     const transcript = formatTranscript(session);
