@@ -245,12 +245,25 @@ ${transcript}
 
 Return:
 
+Return ONLY valid JSON:
+
 {
   "score": 72,
   "revenue": "₱45,000 - ₱180,000/month",
+
   "biggestLeak": "Missed Calls",
-  "impact": "5 missed calls per week may represent ₱20,000 - ₱70,000/month in lost revenue.",
-  "edenFit": 92,
+
+  "leakExplanation":
+  "5 missed calls per week may represent 10-20 lost patients per month.",
+
+  "fitScore": 92,
+
+  "expectedOutcome":
+  "+12 to 27 additional bookings per month",
+
+  "actionPlan":
+  "Install missed-call recovery, improve Messenger response speed, implement follow-up.",
+
   "opportunity1": "...",
   "opportunity2": "...",
   "opportunity3": "..."
