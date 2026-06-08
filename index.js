@@ -291,6 +291,40 @@ Return:
   }
 }
 
+function buildAuditHtml({ clinic, audit }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clinic Revenue Rescue Audit</title>
+</head>
+<body>
+  <h1>Clinic Revenue Rescue Audit™</h1>
+
+  <h2>${clinic || "Your Clinic"}</h2>
+
+  <p><strong>Growth Score:</strong> ${audit.score}/100</p>
+
+  <p><strong>Estimated Revenue Leakage:</strong> ${audit.revenue}</p>
+
+  <h2>Top Opportunities</h2>
+
+  <ul>
+    <li>${audit.opportunity1}</li>
+    <li>${audit.opportunity2}</li>
+    <li>${audit.opportunity3}</li>
+  </ul>
+
+  <h2>Eden Recommendation</h2>
+  <p>
+    Eden can help recover missed inquiries through missed-call recovery,
+    fast follow-up, Messenger AI, and booking support.
+  </p>
+</body>
+</html>
+`;
+}
+
 async function createLeadSummary(session, sessionId) {
   try {
     const transcript = formatTranscript(session);
