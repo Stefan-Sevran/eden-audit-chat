@@ -298,14 +298,56 @@ function buildAuditHtml({ clinic, audit }) {
 <head>
   <title>Clinic Revenue Rescue Audit</title>
 </head>
-<body>
+<body style="
+font-family: Arial, sans-serif;
+max-width: 900px;
+margin: auto;
+padding: 40px;
+background: #f8fafc;
+color: #222;
+">
+
   <h1>Clinic Revenue Rescue Audit™</h1>
 
   <h2>${clinic || "Your Clinic"}</h2>
 
-  <p><strong>Growth Score:</strong> ${audit.score}/100</p>
+  <div style="
+background:#eef4ff;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+">
 
-  <p><strong>Estimated Revenue Leakage:</strong> ${audit.revenue}</p>
+<h2>Growth Score</h2>
+
+<div style="
+font-size:48px;
+font-weight:bold;
+color:#2563eb;
+">
+${audit.score}/100
+</div>
+
+</div>
+
+  <div style="
+background:#ecfdf5;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+">
+
+<h2>Estimated Revenue Leakage</h2>
+
+<div style="
+font-size:36px;
+font-weight:bold;
+color:#16a34a;
+">
+${audit.revenue}
+</div>
+
+</div>
 
   <h2>Top Opportunities</h2>
 
