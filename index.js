@@ -243,32 +243,51 @@ ${profileContext}
 Conversation:
 ${transcript}
 
+Important:
+
+Use information from the actual clinic conversation.
+
+Do not use generic recommendations.
+
+Fit Score should reflect how strongly Eden Clinic Network can help this clinic using missed-call recovery, fast follow-up, Messenger AI, booking support and revenue recovery systems.
+
+Urgency should be HIGH, MEDIUM or LOW depending on the estimated revenue being lost.
+
+Action Plan should be specific to the clinic's answers.
+
 Return:
 
 Return ONLY valid JSON:
-
 {
   "score": 72,
   "revenue": "₱45,000 - ₱180,000/month",
 
-  "biggestLeak": "Missed Calls",
+  "biggestLeak":
+  "Most important revenue leak discovered from the conversation",
 
   "leakExplanation":
-  "5 missed calls per week may represent 10-20 lost patients per month.",
+  "Brief explanation of why this leak is costing bookings or revenue",
 
-  "fitScore": 92,
+  "fitScore":
+  92,
 
   "expectedOutcome":
-  "+12 to 27 additional bookings per month",
+  "Estimated bookings or revenue that could realistically be recovered",
 
-"urgency": "HIGH",
+  "urgency":
+  "HIGH, MEDIUM or LOW",
 
   "actionPlan":
-  "Install missed-call recovery, improve Messenger response speed, implement follow-up.",
+  "Specific 30-day action plan based on the clinic's situation",
 
-  "opportunity1": "...",
-  "opportunity2": "...",
-  "opportunity3": "..."
+  "opportunity1":
+  "Most valuable improvement",
+
+  "opportunity2":
+  "Second most valuable improvement",
+
+  "opportunity3":
+  "Third most valuable improvement"
 }
 `;
 
