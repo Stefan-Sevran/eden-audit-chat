@@ -259,6 +259,7 @@ Return:
 
 Return ONLY valid JSON:
 {
+  "clinicName": "SmileCare Dental Cebu",
   "score": 72,
   "revenue": "₱45,000 - ₱180,000/month",
 
