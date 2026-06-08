@@ -599,5 +599,27 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+app.get("/audit-preview/:sessionId", async (req, res) => {
+  try {
+    const sessionId = req.params.sessionId;
+    const session = sessions[sessionId] || [];
+    const transcript = formatTranscript(session);
+    const profileContext = getProfileContext(sessionId);
+    const profile = clinicProfiles[sessionId] || {};
+
+    const audit = await generateAudit(profileContext, transcript);
+
+    const html = buildAuditHtml({
+      clinic: profile.clinicName || "Your Clinic",
+      audit
+    });
+
+    res.send(html);
+  } catch (error) {
+    console.error("Audit preview error:", error);
+    res.status(500).send("Audit preview unavailable.");
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
