@@ -739,7 +739,11 @@ async function getAIReply(userText, sessionId = "default") {
 
     sessions[sessionId] = sessions[sessionId].slice(-50);
 
-    await maybeSendLeadAlert(sessionId, userText);
+    try {
+  await maybeSendLeadAlert(sessionId, userText);
+} catch (leadError) {
+  console.error("Lead alert failed:", leadError);
+}
 
     return reply.trim();
   } catch (error) {
