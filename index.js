@@ -361,6 +361,31 @@ ${audit.revenue}
 <h2>Eden Compatibility Score</h2>
 <p>${audit.edenFit}/100</p>
 
+<h2>Biggest Revenue Leak</h2>
+
+<div style="
+background:#fff4f4;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+border-left:6px solid #dc2626;
+">
+
+<div style="
+font-size:28px;
+font-weight:bold;
+color:#dc2626;
+margin-bottom:10px;
+">
+${audit.biggestLeak || "Missed Calls"}
+</div>
+
+<p>
+${audit.leakExplanation || "Patients who try to contact your clinic may not always receive a fast response, which can lead to lost bookings and missed revenue."}
+</p>
+
+</div>
+
   <h2>Top Opportunities</h2>
 
   <ul>
@@ -368,6 +393,22 @@ ${audit.revenue}
     <li>${audit.opportunity2}</li>
     <li>${audit.opportunity3}</li>
   </ul>
+
+<h2>30-Day Revenue Rescue Plan</h2>
+
+<div style="
+background:#ffffff;
+padding:20px;
+border-radius:12px;
+margin-bottom:20px;
+">
+
+<p><strong>Week 1:</strong> Track missed calls and slow replies.</p>
+<p><strong>Week 2:</strong> Add fast follow-up for missed inquiries.</p>
+<p><strong>Week 3:</strong> Improve Messenger and booking response flow.</p>
+<p><strong>Week 4:</strong> Review recovered bookings and revenue impact.</p>
+
+</div>
 
   <h2>Eden Recommendation</h2>
   <p>
@@ -664,7 +705,10 @@ app.get("/audit-preview/:sessionId", async (req, res) => {
     const audit = await generateAudit(profileContext, transcript);
 
     const html = buildAuditHtml({
-      clinic: profile.clinicName || "Your Clinic",
+      clinic:
+  profile.clinicName ||
+  sessions[sessionId]?.find(m => m.role === "user")?.content?.match(/my clinic is ([^.\n]+)/i)?.[1] ||
+  "Your Clinic",
       audit
     });
 
