@@ -206,11 +206,20 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId,
-        profileContext,
-        summary,
-        transcript,
-        timestamp: new Date().toISOString()
+  sessionId,
+
+  clinic: clinicProfiles[sessionId]?.clinicName || "",
+  city: clinicProfiles[sessionId]?.city || "",
+  clinicType: clinicProfiles[sessionId]?.clinicType || "",
+  website: clinicProfiles[sessionId]?.website || "",
+  whatsapp: clinicProfiles[sessionId]?.whatsapp || "",
+  email: clinicProfiles[sessionId]?.email || "",
+  intent: clinicProfiles[sessionId]?.buyingIntent || "",
+
+  summary,
+  transcript,
+
+  timestamp: new Date().toISOString()
       })
     });
 
