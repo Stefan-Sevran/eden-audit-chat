@@ -465,21 +465,6 @@ margin-bottom:20px;
 
 </div>
 
-<h2>30-Day Action Plan</h2>
-
-<div style="
-background:#fafaf9;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
-">
-
-<p>
-${audit.actionPlan}
-</p>
-
-</div>
-
   <h2>Eden Recommendation</h2>
   <p>
     Eden can help recover missed inquiries through missed-call recovery,
