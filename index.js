@@ -261,6 +261,8 @@ Return ONLY valid JSON:
   "expectedOutcome":
   "+12 to 27 additional bookings per month",
 
+"urgency": "HIGH",
+
   "actionPlan":
   "Install missed-call recovery, improve Messenger response speed, implement follow-up.",
 
@@ -373,6 +375,31 @@ ${audit.revenue}
 
 <h2>Eden Compatibility Score</h2>
 <p>${audit.edenFit}/100</p>
+
+<h2>Priority Level</h2>
+
+<div style="
+background:#fef2f2;
+padding:20px;
+border-radius:12px;
+border-left:6px solid #dc2626;
+margin-bottom:20px;
+">
+
+<div style="
+font-size:32px;
+font-weight:bold;
+color:#dc2626;
+">
+${audit.urgency || "MEDIUM"}
+</div>
+
+<p>
+The sooner this clinic addresses its biggest revenue leak,
+the faster bookings and revenue can be recovered.
+</p>
+
+</div>
 
 <h2>Biggest Revenue Leak</h2>
 
