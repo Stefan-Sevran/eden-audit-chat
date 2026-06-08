@@ -626,8 +626,6 @@ async function maybeSendLeadAlert(sessionId, latestUserText) {
   if (alertedSessions[sessionId]) return;
   if (!hasLeadSignal(latestUserText)) return;
 
-  alertedSessions[sessionId] = true;
-
   const session = sessions[sessionId] || [];
   const summary = await createLeadSummary(session, sessionId);
   const transcript = formatTranscript(session);
@@ -650,13 +648,16 @@ FULL TRANSCRIPT
 ${transcript}
 `;
 
-  await sendTelegram(message);
   await saveLeadToGoogleSheets({
   sessionId,
   profileContext,
   summary,
   transcript
 });
+  
+  await sendTelegram(message);
+  alertedSessions[sessionId] = true;
+
 }
 
 app.get("/webhook", (req, res) => {
