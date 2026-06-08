@@ -415,6 +415,37 @@ margin-bottom:20px;
     Eden can help recover missed inquiries through missed-call recovery,
     fast follow-up, Messenger AI, and booking support.
   </p>
+
+<h2>Next Step</h2>
+
+<div style="
+background:#111827;
+color:white;
+padding:24px;
+border-radius:14px;
+margin-top:30px;
+">
+
+<h2 style="color:white;">Want Eden to help recover these bookings?</h2>
+
+<p>
+We can review your clinic setup and show which missed calls, slow replies,
+or booking leaks can be recovered first.
+</p>
+
+<p style="
+font-size:22px;
+font-weight:bold;
+">
+Request your free implementation review:
+</p>
+
+<p>
+clinicnet.live
+</p>
+
+</div>
+  
 </body>
 </html>
 `;
