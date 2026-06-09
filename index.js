@@ -744,12 +744,17 @@ If unknown, write Unknown.
 async function maybeSendLeadAlert(sessionId, latestUserText) {
   const profile = clinicProfiles[sessionId] || {};
 
-const hasContactInfo =
-  profile.email ||
-  profile.phone ||
-  profile.whatsapp ||
-  profile.website;
-  
+  const hasContactInfo =
+    profile.email ||
+    profile.whatsapp ||
+    profile.website;
+
+  if (alertedSessions[sessionId]) {
+    if (!hasContactInfo || contactUpdatedSessions[sessionId]) {
+      return;
+    }
+  }
+
   if (!hasLeadSignal(latestUserText)) return;
 
   const session = sessions[sessionId] || [];
@@ -782,6 +787,9 @@ ${transcript}
 });
   
   await sendTelegram(message);
+  if (hasContactInfo) {
+  contactUpdatedSessions[sessionId] = true;
+}
   alertedSessions[sessionId] = true;
 
 }
