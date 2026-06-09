@@ -741,7 +741,14 @@ If unknown, write Unknown.
 }
 
 async function maybeSendLeadAlert(sessionId, latestUserText) {
-  if (alertedSessions[sessionId]) return;
+  const profile = clinicProfiles[sessionId] || {};
+
+const hasNewContactInfo =
+  profile.email ||
+  profile.whatsapp ||
+  profile.website;
+
+if (alertedSessions[sessionId] && !hasNewContactInfo) return;
   if (!hasLeadSignal(latestUserText)) return;
 
   const session = sessions[sessionId] || [];
