@@ -750,12 +750,6 @@ const hasContactInfo =
   profile.whatsapp ||
   profile.website;
   
-const hasNewContactInfo =
-  profile.email ||
-  profile.whatsapp ||
-  profile.website;
-
-if (alertedSessions[sessionId] && !hasNewContactInfo) return;
   if (!hasLeadSignal(latestUserText)) return;
 
   const session = sessions[sessionId] || [];
