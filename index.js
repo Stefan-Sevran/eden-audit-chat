@@ -175,7 +175,8 @@ Known clinic information:
 Clinic name: ${p.clinicName || "Unknown"}
 City: ${p.city || "Unknown"}
 Clinic type: ${p.clinicType || "Unknown"}
-Website/Facebook: ${p.website || "Unknown"}
+Website: ${p.website || "Unknown"}
+Facebook: ${p.facebook || "Unknown"}
 WhatsApp: ${p.whatsapp || "Unknown"}
 Email: ${p.email || "Unknown"}
 Buying intent: ${p.buyingIntent || "Unknown"}
