@@ -400,10 +400,10 @@ ${audit.revenue}
 <p>${audit.biggestLeak}</p>
 
 <h2>Estimated Impact</h2>
-<p>${audit.impact}</p>
+<p>${audit.expectedOutcome}</p>
 
 <h2>Eden Compatibility Score</h2>
-<p>${audit.edenFit}/100</p>
+<p>${audit.fitScore}/100</p>
 
 <h2>Priority Level</h2>
 
