@@ -338,6 +338,20 @@ return JSON.parse(rawAudit);
   }
 }
 
+function safe(value, fallback = "") {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    value === "undefined" ||
+    value === "null"
+  ) {
+    return fallback;
+  }
+
+  return String(value);
+}
+
 function buildAuditHtml({ clinic, audit }) {
   return `
 <!DOCTYPE html>
