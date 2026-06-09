@@ -98,19 +98,35 @@ function updateProfileFromText(sessionId, text) {
   if (websiteMatch) profile.website = websiteMatch[0];
 
   const clinicPatterns = [
-    /my clinic is ([^.\n]+)/i,
-    /clinic name is ([^.\n]+)/i,
-    /clinic name[:\s]+([^.\n]+)/i,
-    /we are ([^.\n]+)/i
-  ];
+  /my clinic is ([^.\n,]+)/i,
+  /clinic name is ([^.\n,]+)/i,
+  /clinic name[:\s]+([^.\n,]+)/i,
+  /our clinic is ([^.\n,]+)/i,
+  /from a clinic called ([^.\n,]+)/i,
+  /clinic called ([^.\n,]+)/i,
+  /called ([^.\n,]+)/i,
+  /i am .+? from ([^.\n,]+)/i,
+  /i'm .+? from ([^.\n,]+)/i,
+  /^([^,\n]+),\s*(fb|facebook)/i
+];
 
   for (const pattern of clinicPatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      profile.clinicName = match[1].trim();
-      break;
-    }
+  let candidate = match[1].trim();
+
+  candidate = candidate
+    .replace(/\bfb\b/gi, "")
+    .replace(/\bfacebook\b/gi, "")
+    .replace(/\bpage\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (candidate.length >= 3 && candidate.length <= 80) {
+    profile.clinicName = candidate;
+    break;
   }
+}
 
   if (lower.includes("cebu")) profile.city = "Cebu";
   if (lower.includes("manila")) profile.city = "Manila";
