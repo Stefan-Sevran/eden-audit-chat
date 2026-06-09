@@ -797,18 +797,10 @@ async function maybeSendLeadAlert(sessionId, latestUserText) {
   const message = `
 🔥 NEW CLINIC AUDIT LEAD
 
-Session:
-${sessionId}
-
-CLINIC PROFILE
 ${profileContext}
 
 SUMMARY
 ${summary}
-
-FULL TRANSCRIPT
---------------------
-${transcript}
 `;
 
   await saveLeadToGoogleSheets({
