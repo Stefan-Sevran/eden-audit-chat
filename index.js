@@ -98,18 +98,25 @@ function updateProfileFromText(sessionId, text) {
   if (websiteMatch) profile.website = websiteMatch[0];
 
   const clinicPatterns = [
-  /my clinic is ([^.\n,]+)/i,
-  /clinic name is ([^.\n,]+)/i,
-  /clinic name[:\s]+([^.\n,]+)/i,
-  /our clinic is ([^.\n,]+)/i,
-  /from a clinic called ([^.\n,]+)/i,
-  /clinic called ([^.\n,]+)/i,
-  /called ([^.\n,]+)/i,
-  /i am .+? from ([^.\n,]+)/i,
-  /i'm .+? from ([^.\n,]+)/i,
-  /^([^,\n]+),\s*(fb|facebook)/i
+/my clinic is ([^.\n,]+)/i,
+/clinic name is ([^.\n,]+)/i,
+/our clinic is ([^.\n,]+)/i,
+/i run ([^.\n,]+)/i,
+/i own ([^.\n,]+)/i,
+/i manage ([^.\n,]+)/i,
+/from a clinic called ([^.\n,]+)/i, 
 ];
+    
+const fbMatch =
+  text.match(/our facebook page is ([^.\n,]+)/i) ||
+  text.match(/facebook page is ([^.\n,]+)/i) ||
+  text.match(/fb is ([^.\n,]+)/i) ||
+  text.match(/fb[:\s]+([^.\n,]+)/i) ||
+  text.match(/facebook[:\s]+([^.\n,]+)/i);
 
+if (fbMatch && fbMatch[1]) {
+  profile.facebook = fbMatch[1].trim();
+}
   for (const pattern of clinicPatterns) {
   const match = text.match(pattern);
 
