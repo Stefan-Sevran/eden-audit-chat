@@ -120,7 +120,28 @@ const fbMatch =
   text.match(/facebook[:\s]+([^.\n,]+)/i);
 
 if (fbMatch && fbMatch[1]) {
-  profile.facebook = fbMatch[1].trim();
+  const fb = fbMatch[1].trim();
+
+  const badFacebookWords = [
+  "auto",
+  "responder",
+  "reply",
+  "message limit",
+  "messages",
+  "follow-up",
+  "manual"
+];
+
+const looksBad = badFacebookWords.some(word =>
+  fb.toLowerCase().includes(word)
+);
+
+if (
+  fb.length >= 3 &&
+  fb.length <= 60 &&
+  !looksBad
+) {
+  profile.facebook = fb;
 }
   for (const pattern of clinicPatterns) {
   const match = text.match(pattern);
