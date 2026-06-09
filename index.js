@@ -796,6 +796,48 @@ If unknown, write Unknown.
   }
 }
 
+function createTelegramLeadCard(sessionId, summary) {
+  const p = clinicProfiles[sessionId] || {};
+
+  const tempMatch = summary.match(/Lead temperature:\s*([^\n]+)/i);
+  const intentMatch = summary.match(/Buying intent score 1-10:\s*([^\n]+)/i);
+  const opportunityMatch = summary.match(/Estimated opportunity:\s*([\s\S]*?)(Buying intent|Lead temperature|Recommended follow-up|$)/i);
+  const problemMatch = summary.match(/Main problems:\s*([\s\S]*?)(Estimated opportunity|Buying intent|Lead temperature|Recommended follow-up|$)/i);
+  const followMatch = summary.match(/Recommended follow-up:\s*([\s\S]*)/i);
+
+  const temperature = tempMatch ? tempMatch[1].trim() : "Unknown";
+  const intent = intentMatch ? intentMatch[1].trim() : "Unknown";
+  const opportunity = opportunityMatch ? opportunityMatch[1].trim() : "Unknown";
+  const problem = problemMatch ? problemMatch[1].trim() : "Unknown";
+  const followUp = followMatch ? followMatch[1].trim() : "Review lead and follow up.";
+
+  return `
+🔥 NEW CLINIC AUDIT LEAD
+
+🏥 ${p.clinicName || "Unknown clinic"}
+📍 ${p.city || "Unknown city"}
+🏷️ ${p.clinicType || "Unknown type"}
+🌡️ ${temperature} (${intent})
+
+🌐 ${p.website || "No website captured"}
+📧 ${p.email || "No email captured"}
+📘 ${p.facebook || "No Facebook captured"}
+📱 ${p.whatsapp || "No WhatsApp captured"}
+
+💰 Estimated opportunity:
+${opportunity}
+
+⚠ Biggest leak:
+${problem}
+
+➡ Recommended next step:
+${followUp}
+
+Session:
+${sessionId}
+`;
+}
+  
 async function maybeSendLeadAlert(sessionId, latestUserText) {
   const profile = clinicProfiles[sessionId] || {};
 
@@ -820,15 +862,8 @@ async function maybeSendLeadAlert(sessionId, latestUserText) {
   const transcript = formatTranscript(session);
   const profileContext = getProfileContext(sessionId);
 
-  const message = `
-🔥 NEW CLINIC AUDIT LEAD
-
-${profileContext}
-
-SUMMARY
-${summary}
-`;
-
+const message = createTelegramLeadCard(sessionId, summary);
+  
   await saveLeadToGoogleSheets({
   sessionId,
   profileContext,
