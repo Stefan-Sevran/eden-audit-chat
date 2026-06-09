@@ -952,7 +952,11 @@ app.post("/chat", async (req, res) => {
     }
 
     const reply = await getAIReply(userText, sessionId);
-    res.json({ reply });
+    res.json({
+  reply,
+  sessionId,
+  auditPreviewUrl: `https://eden-audit-chat.onrender.com/audit-preview/${sessionId}`
+});
   } catch (error) {
     console.error("Chat error:", error);
     res.status(500).json({ reply: "One sec 😊 let me check that for you." });
