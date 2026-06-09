@@ -784,6 +784,9 @@ async function maybeSendLeadAlert(sessionId, latestUserText) {
 
   const session = sessions[sessionId] || [];
   const summary = await createLeadSummary(session, sessionId);
+  
+  updateProfileFromText(sessionId, summary);
+  
   const transcript = formatTranscript(session);
   const profileContext = getProfileContext(sessionId);
 
