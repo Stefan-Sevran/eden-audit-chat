@@ -353,224 +353,328 @@ function safe(value, fallback = "") {
 }
 
 function buildAuditHtml({ clinic, audit }) {
+  const clinicName = safe(audit.clinicName, clinic || "Your Clinic");
+  const score = safe(audit.score, "65");
+  const revenue = safe(audit.revenue, "₱45,000 - ₱180,000/month");
+  const summary = safe(
+    audit.summary,
+    `${clinicName} appears to have recoverable revenue opportunities through missed calls, slow replies, and weak follow-up.`
+  );
+
+  const biggestLeak = safe(audit.biggestLeak, "Missed calls and slow replies");
+  const leakExplanation = safe(
+    audit.leakExplanation,
+    "Patients who try to contact your clinic may not always receive a fast response, which can lead to lost bookings and missed revenue."
+  );
+
+  const expectedOutcome = safe(
+    audit.expectedOutcome,
+    "Potential recovery depends on call volume, inquiry volume, and how consistently the clinic follows up."
+  );
+
+  const fitScore = safe(audit.fitScore, "70");
+  const urgency = safe(audit.urgency, "MEDIUM");
+
+  const opportunity1 = safe(audit.opportunity1, "Recover missed calls faster");
+  const opportunity2 = safe(audit.opportunity2, "Improve Messenger reply speed");
+  const opportunity3 = safe(audit.opportunity3, "Follow up with unbooked patients");
+
+  const websiteFindings = safe(audit.websiteFindings, "Website review not completed yet.");
+  const facebookFindings = safe(audit.facebookFindings, "Facebook page review not completed yet.");
+  const googleMapsFindings = safe(audit.googleMapsFindings, "Google Maps review not completed yet.");
+  const reviewsScore = safe(audit.reviewsScore, "Unknown");
+  const bookingFriction = safe(audit.bookingFriction, "Not enough information yet.");
+  const trustSignals = safe(audit.trustSignals, "Not enough information yet.");
+  const responseRisk = safe(audit.responseRisk, "Unknown");
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Clinic Revenue Rescue Audit</title>
+  <title>${clinicName} - Eden Clinic Growth Audit</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
+
 <body style="
 font-family: Arial, sans-serif;
 max-width: 900px;
 margin: auto;
-padding: 40px;
+padding: 40px 18px;
 background: #f8fafc;
-color: #222;
+color: #111827;
+line-height: 1.55;
 ">
 
-  <h1>Clinic Revenue Rescue Audit™</h1>
-
-  <h2>${audit.clinicName || "Your Clinic"}</h2>
+<div style="
+background: linear-gradient(135deg, #111827, #312e81);
+color:white;
+padding:32px;
+border-radius:22px;
+margin-bottom:22px;
+">
 
   <div style="
-background:#eef4ff;
-padding:20px;
-border-radius:12px;
+  font-size:13px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:#c7d2fe;
+  font-weight:bold;
+  margin-bottom:8px;
+  ">
+  Eden Clinic Network • AI Growth Audit
+  </div>
+
+  <h1 style="
+  font-size:36px;
+  line-height:1.1;
+  margin:0 0 8px;
+  ">
+  ${clinicName}
+  </h1>
+
+  <p style="
+  font-size:18px;
+  color:#e5e7eb;
+  margin:0;
+  ">
+  Clinic Revenue Rescue Audit™
+  </p>
+
+</div>
+
+<div style="
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:16px;
 margin-bottom:20px;
 ">
 
-<h2>Growth Score</h2>
+  <div style="
+  background:#eef4ff;
+  padding:22px;
+  border-radius:18px;
+  ">
 
-<div style="
-font-size:48px;
-font-weight:bold;
-color:#2563eb;
-">
-${audit.score}/100
-</div>
+    <h2 style="margin-top:0;">Growth Score</h2>
 
-</div>
+    <div style="
+    font-size:52px;
+    font-weight:bold;
+    color:#2563eb;
+    ">
+    ${score}/100
+    </div>
+
+  </div>
 
   <div style="
-background:#ecfdf5;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
-">
+  background:#ecfdf5;
+  padding:22px;
+  border-radius:18px;
+  ">
 
-<h2>Estimated Revenue Leakage</h2>
+    <h2 style="margin-top:0;">Estimated Recovery Opportunity</h2>
+
+    <div style="
+    font-size:30px;
+    font-weight:bold;
+    color:#16a34a;
+    ">
+    ${revenue}
+    </div>
+
+  </div>
+
+</div>
 
 <div style="
-font-size:36px;
-font-weight:bold;
-color:#16a34a;
+background:white;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
+border:1px solid #e5e7eb;
 ">
-${audit.revenue}
-</div>
+
+  <h2 style="margin-top:0;">Audit Summary</h2>
+  <p style="font-size:18px;color:#374151;">${summary}</p>
 
 </div>
 
-<h2>Biggest Revenue Leak</h2>
-<p>${audit.biggestLeak}</p>
+<div style="
+background:#fff7ed;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
+border-left:7px solid #f97316;
+">
 
-<h2>Estimated Impact</h2>
-<p>${audit.expectedOutcome}</p>
+  <h2 style="margin-top:0;">Biggest Revenue Leak</h2>
 
-<h2>Eden Compatibility Score</h2>
-<p>${audit.fitScore}/100</p>
+  <div style="
+  font-size:26px;
+  font-weight:bold;
+  color:#c2410c;
+  margin-bottom:8px;
+  ">
+  ${biggestLeak}
+  </div>
 
-<h2>Priority Level</h2>
+  <p>${leakExplanation}</p>
+
+</div>
+
+<div style="
+background:white;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
+border:1px solid #e5e7eb;
+">
+
+  <h2 style="margin-top:0;">Eden Compatibility</h2>
+
+  <div style="
+  font-size:42px;
+  font-weight:bold;
+  color:#7c3aed;
+  ">
+  ${fitScore}/100
+  </div>
+
+  <p>
+  How suitable this clinic appears for Eden's missed-call recovery,
+  fast follow-up, Messenger AI, and booking support system.
+  </p>
+
+</div>
 
 <div style="
 background:#fef2f2;
-padding:20px;
-border-radius:12px;
-border-left:6px solid #dc2626;
-margin-bottom:20px;
+padding:24px;
+border-radius:18px;
+border-left:7px solid #dc2626;
+margin-bottom:18px;
 ">
+
+  <h2 style="margin-top:0;">Priority Level</h2>
+
+  <div style="
+  font-size:30px;
+  font-weight:bold;
+  color:#dc2626;
+  ">
+  ${urgency}
+  </div>
+
+  <p>
+  The sooner this clinic addresses its biggest revenue leak,
+  the faster bookings and revenue can be recovered.
+  </p>
+
+</div>
 
 <div style="
-font-size:32px;
-font-weight:bold;
-color:#dc2626;
-">
-${audit.urgency || "MEDIUM"}
-</div>
-
-<p>
-The sooner this clinic addresses its biggest revenue leak,
-the faster bookings and revenue can be recovered.
-</p>
-
-</div>
-
-<h2>Biggest Revenue Leak</h2>
-
-<div style="
-background:#fff4f4;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
-border-left:6px solid #dc2626;
+background:white;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
+border:1px solid #e5e7eb;
 ">
 
-<div style="
-font-size:28px;
-font-weight:bold;
-color:#dc2626;
-margin-bottom:10px;
-">
-${audit.biggestLeak || "Missed Calls"}
-</div>
+  <h2 style="margin-top:0;">Top 3 Opportunities</h2>
 
-<p>
-${audit.leakExplanation || "Patients who try to contact your clinic may not always receive a fast response, which can lead to lost bookings and missed revenue."}
-</p>
+  <ol style="font-size:17px;">
+    <li>${opportunity1}</li>
+    <li>${opportunity2}</li>
+    <li>${opportunity3}</li>
+  </ol>
 
 </div>
-
-<h2>Eden Fit Score</h2>
-
-<div style="
-background:#f3f4f6;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
-">
-
-<div style="
-font-size:36px;
-font-weight:bold;
-color:#7c3aed;
-">
-${audit.fitScore}/100
-</div>
-
-<p>
-How suitable your clinic appears for Eden's recovery systems.
-</p>
-
-</div>
-
-  <h2>Top Opportunities</h2>
-
-  <ul>
-    <li>${audit.opportunity1}</li>
-    <li>${audit.opportunity2}</li>
-    <li>${audit.opportunity3}</li>
-  </ul>
-
-  <h2>Expected Outcome</h2>
 
 <div style="
 background:#eff6ff;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
 ">
 
-<p style="
-font-size:24px;
-font-weight:bold;
-color:#2563eb;
-">
-${audit.expectedOutcome}
-</p>
+  <h2 style="margin-top:0;">Expected Outcome</h2>
 
-</div>
-
-<h2>30-Day Revenue Rescue Plan</h2>
-
-<div style="
-background:#ffffff;
-padding:20px;
-border-radius:12px;
-margin-bottom:20px;
-">
-
-<p><strong>Week 1:</strong> Track missed calls and slow replies.</p>
-<p><strong>Week 2:</strong> Add fast follow-up for missed inquiries.</p>
-<p><strong>Week 3:</strong> Improve Messenger and booking response flow.</p>
-<p><strong>Week 4:</strong> Review recovered bookings and revenue impact.</p>
-
-</div>
-
-  <h2>Eden Recommendation</h2>
-  <p>
-    Eden can help recover missed inquiries through missed-call recovery,
-    fast follow-up, Messenger AI, and booking support.
+  <p style="
+  font-size:22px;
+  font-weight:bold;
+  color:#2563eb;
+  ">
+  ${expectedOutcome}
   </p>
 
-<h2>Next Step</h2>
+</div>
+
+<div style="
+background:white;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
+border:1px solid #e5e7eb;
+">
+
+  <h2 style="margin-top:0;">Premium Audit Signals</h2>
+
+  <p><strong>Website findings:</strong> ${websiteFindings}</p>
+  <p><strong>Facebook findings:</strong> ${facebookFindings}</p>
+  <p><strong>Google Maps findings:</strong> ${googleMapsFindings}</p>
+  <p><strong>Reviews score:</strong> ${reviewsScore}</p>
+  <p><strong>Booking friction:</strong> ${bookingFriction}</p>
+  <p><strong>Trust signals:</strong> ${trustSignals}</p>
+  <p><strong>Response risk:</strong> ${responseRisk}</p>
+
+</div>
+
+<div style="
+background:white;
+padding:24px;
+border-radius:18px;
+margin-bottom:18px;
+border:1px solid #e5e7eb;
+">
+
+  <h2 style="margin-top:0;">30-Day Revenue Rescue Plan</h2>
+
+  <p><strong>Week 1:</strong> Track missed calls and slow replies.</p>
+  <p><strong>Week 2:</strong> Add fast follow-up for missed inquiries.</p>
+  <p><strong>Week 3:</strong> Improve Messenger and booking response flow.</p>
+  <p><strong>Week 4:</strong> Review recovered bookings and revenue impact.</p>
+
+</div>
 
 <div style="
 background:#111827;
 color:white;
-padding:24px;
-border-radius:14px;
-margin-top:30px;
+padding:28px;
+border-radius:22px;
+margin-top:28px;
 ">
 
-<h2 style="color:white;">Want Eden to help recover these bookings?</h2>
+  <h2 style="color:white;margin-top:0;">Want Eden to help recover these bookings?</h2>
 
-<p>
-We can review your clinic setup and show which missed calls, slow replies,
-or booking leaks can be recovered first.
-</p>
+  <p style="color:#e5e7eb;font-size:17px;">
+  We can review your clinic setup and show which missed calls, slow replies,
+  or booking leaks can be recovered first.
+  </p>
 
-<p style="
-font-size:22px;
-font-weight:bold;
-">
-Request your free implementation review:
-</p>
+  <p style="
+  font-size:22px;
+  font-weight:bold;
+  ">
+  Request your free implementation review:
+  </p>
 
-<p>
-clinicnet.live
-</p>
+  <p style="font-size:20px;font-weight:bold;">
+  clinicnet.live
+  </p>
 
 </div>
-  
+
 </body>
 </html>
 `;
