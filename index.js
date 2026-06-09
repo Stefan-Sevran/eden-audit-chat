@@ -98,13 +98,14 @@ function updateProfileFromText(sessionId, text) {
   if (websiteMatch) profile.website = websiteMatch[0];
 
   const clinicPatterns = [
-/my clinic is ([^.\n,]+)/i,
-/clinic name is ([^.\n,]+)/i,
-/our clinic is ([^.\n,]+)/i,
 /i run ([^.\n,]+)/i,
 /i own ([^.\n,]+)/i,
 /i manage ([^.\n,]+)/i,
-/from a clinic called ([^.\n,]+)/i, 
+/from a clinic called ([^.\n,]+)/i,
+/clinic called ([^.\n,]+)/i,
+/called ([^.\n,]+)/i,
+/i am .+? from ([^.\n,]+)/i,
+/i'm .+? from ([^.\n,]+)/i,
 ];
     
 const fbMatch =
