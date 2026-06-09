@@ -128,6 +128,7 @@ if (match && match[1]) {
     break;
   }
 }
+  }   
   if (lower.includes("cebu")) profile.city = "Cebu";
   if (lower.includes("manila")) profile.city = "Manila";
   if (lower.includes("davao")) profile.city = "Davao";
