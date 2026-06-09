@@ -975,6 +975,78 @@ app.get("/test-telegram", async (req, res) => {
   }
 });
 
+async function extractProfileWithAI(sessionId) {
+  try {
+    const history = sessions[sessionId] || [];
+    const recentMessages = history.slice(-12);
+
+    if (recentMessages.length < 4) return;
+
+    const profile = clinicProfiles[sessionId] || {};
+
+    const extractionPrompt = `
+Extract clinic lead information from this chat.
+
+Return ONLY valid JSON.
+No markdown.
+No explanation.
+
+Fields:
+{
+  "clinicName": "",
+  "personName": "",
+  "city": "",
+  "clinicType": "",
+  "website": "",
+  "facebook": "",
+  "whatsapp": "",
+  "email": "",
+  "buyingIntent": "",
+  "mainPainPoint": ""
+}
+
+Rules:
+- Use empty string if unknown.
+- Do not guess.
+- buyingIntent can be: low, medium, high, or empty.
+- mainPainPoint should be short.
+`;
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        messages: [
+          { role: "system", content: extractionPrompt },
+          { role: "user", content: JSON.stringify(recentMessages) }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content || "{}";
+
+    const extracted = JSON.parse(raw);
+
+    clinicProfiles[sessionId] = {
+      ...profile,
+      ...Object.fromEntries(
+        Object.entries(extracted).filter(([key, value]) => value && value.trim() !== "")
+      )
+    };
+
+    console.log("AI profile extracted:", sessionId, clinicProfiles[sessionId]);
+
+  } catch (error) {
+    console.error("AI profile extraction error:", error.message);
+  }
+}
+
 app.post("/chat", async (req, res) => {
   try {
     const userText = req.body.message || "";
