@@ -859,6 +859,10 @@ async function getAIReply(userText, sessionId = "default") {
       role: "user",
       content: userText
     });
+   
+    if (sessions[sessionId].length % 6 === 0) {
+  await extractProfileWithAI(sessionId);
+    }
 
     sessions[sessionId] = sessions[sessionId].slice(-50);
 
