@@ -966,11 +966,29 @@ app.post("/chat", async (req, res) => {
 app.get("/audit-preview/:sessionId", async (req, res) => {
   try {
     const sessionId = req.params.sessionId;
+    if (!sessions[sessionId] || sessions[sessionId].length === 0) {
+  return res.send(buildAuditHtml({
+    clinic: "Audit not ready yet",
+    audit: {
+      clinicName: "Audit not ready yet",
+      score: 0,
+      revenue: "Waiting for clinic conversation",
+      summary: "Please complete the clinic audit chat first. Eden needs the actual clinic conversation before generating a useful preview.",
+      biggestLeak: "Not enough information yet",
+      leakExplanation: "No clinic conversation was found for this audit preview link.",
+      fitScore: 0,
+      expectedOutcome: "Waiting for clinic conversation",
+      urgency: "LOW",
+      opportunity1: "Complete the audit chat",
+      opportunity2: "Share clinic name and city",
+      opportunity3: "Share how bookings and inquiries are handled"
+    }
+  }));
+}
     const session = sessions[sessionId] || [];
     const transcript = formatTranscript(session);
     const profileContext = getProfileContext(sessionId);
-    const profile = clinicProfiles[sessionId] || {};
-
+    const profile = clinicProfiles[sessionId] || {};    
     const audit = await generateAudit(profileContext, transcript);
 
     const html = buildAuditHtml({
