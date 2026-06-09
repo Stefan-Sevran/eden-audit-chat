@@ -129,7 +129,11 @@ if (fbMatch && fbMatch[1]) {
   "message limit",
   "messages",
   "follow-up",
-  "manual"
+  "manual",
+  "whatsapp",
+  "email",
+  "unknown",
+  "contact details"
 ];
 
 const looksBad = badFacebookWords.some(word =>
