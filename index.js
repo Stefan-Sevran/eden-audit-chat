@@ -111,8 +111,9 @@ function updateProfileFromText(sessionId, text) {
 ];
 
   for (const pattern of clinicPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
+  const match = text.match(pattern);
+
+if (match && match[1]) {
   let candidate = match[1].trim();
 
   candidate = candidate
@@ -127,7 +128,6 @@ function updateProfileFromText(sessionId, text) {
     break;
   }
 }
-
   if (lower.includes("cebu")) profile.city = "Cebu";
   if (lower.includes("manila")) profile.city = "Manila";
   if (lower.includes("davao")) profile.city = "Davao";
