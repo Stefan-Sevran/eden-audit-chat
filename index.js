@@ -15,6 +15,7 @@ const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
 
 const sessions = {};
 const alertedSessions = {};
+const contactUpdatedSessions = {};
 const clinicProfiles = {};
 
 const SYSTEM_PROMPT = `
