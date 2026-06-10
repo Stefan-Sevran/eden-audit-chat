@@ -849,7 +849,31 @@ async function maybeSendLeadAlert(sessionId, latestUserText) {
   const summary = await createLeadSummary(session, sessionId);
   
   updateProfileFromText(sessionId, summary);
-  
+
+  const updatedProfile = clinicProfiles[sessionId] || {};
+
+const alertSnapshot = [
+  updatedProfile.clinicName,
+  updatedProfile.city,
+  updatedProfile.clinicType,
+  updatedProfile.website,
+  updatedProfile.facebook,
+  updatedProfile.whatsapp,
+  updatedProfile.email,
+  updatedProfile.buyingIntent,
+  updatedProfile.mainPainPoint
+].join("|");
+
+const hasImportantUpdate =
+  updatedProfile.email ||
+  updatedProfile.whatsapp ||
+  updatedProfile.website ||
+  updatedProfile.facebook ||
+  updatedProfile.buyingIntent === "high";
+
+if (leadAlertSnapshots[sessionId] === alertSnapshot) return;
+
+if (alertedSessions[sessionId] && !hasImportantUpdate) return;
   const transcript = formatTranscript(session);
   const profileContext = getProfileContext(sessionId);
 
