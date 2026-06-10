@@ -170,6 +170,30 @@ if (match && match[1]) {
   }
 }
   }   
+  const p = clinicProfiles[sessionId];
+
+if (p) {
+  for (const key of ["clinicName", "city", "clinicType", "website", "facebook", "whatsapp", "email", "buyingIntent", "mainPainPoint"]) {
+    if (typeof p[key] === "string") {
+      p[key] = p[key].replace(/[;,]+$/g, "").trim();
+    }
+  }
+
+  if (p.email && p.website) {
+    const emailDomain = p.email.split("@")[1]?.toLowerCase();
+    const websiteClean = p.website.replace(/^https?:\/\//, "").replace(/^www\./, "").toLowerCase();
+
+    if (emailDomain && websiteClean === emailDomain) {
+      p.website = "";
+    }
+  }
+
+  const typeText = `${p.clinicName || ""} ${p.clinicType || ""}`.toLowerCase();
+
+  if (typeText.includes("dental") || typeText.includes("dentist") || typeText.includes("orthodont")) {
+    p.clinicType = "Dental clinic";
+  }
+}
   if (lower.includes("cebu")) profile.city = "Cebu";
   if (lower.includes("manila")) profile.city = "Manila";
   if (lower.includes("davao")) profile.city = "Davao";
