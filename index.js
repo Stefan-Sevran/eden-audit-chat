@@ -260,6 +260,69 @@ if (p) {
   }
 }
 
+function normalizeWebsiteUrl(url) {
+  if (!url) return "";
+
+  let clean = url.trim().replace(/[),.]+$/g, "");
+
+  if (!/^https?:\/\//i.test(clean)) {
+    clean = "https://" + clean;
+  }
+
+  return clean;
+}
+
+async function analyzeClinicWebsite(url) {
+  try {
+    const normalizedUrl = normalizeWebsiteUrl(url);
+
+    const response = await fetch(normalizedUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 EdenClinicAuditBot"
+      }
+    });
+
+    const html = await response.text();
+
+    const visibleText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 12000);
+
+    const phoneVisible =
+      /(\+?\d[\d\s().-]{7,}\d)/.test(visibleText);
+
+    const bookingCtaVisible =
+      /(book|appointment|schedule|reserve|consultation|inquire|contact us|get started)/i.test(visibleText);
+
+    const messengerWhatsappVisible =
+      /(messenger|facebook\.com|m\.me|whatsapp|wa\.me)/i.test(html);
+
+    const trustSignalsVisible =
+      /(review|reviews|testimonial|testimonials|before and after|doctor|licensed|certified|years|patients|rating|award)/i.test(visibleText);
+
+    return {
+      reviewedUrl: normalizedUrl,
+      phoneVisible,
+      bookingCtaVisible,
+      messengerWhatsappVisible,
+      trustSignalsVisible,
+      textSample: visibleText.slice(0, 2000)
+    };
+
+  } catch (error) {
+    console.error("Website analysis error:", error.message);
+
+    return {
+      error: true,
+      message: "Website could not be reviewed automatically."
+    };
+  }
+}
+
 function getProfileContext(sessionId) {
   ensureProfile(sessionId);
   const p = clinicProfiles[sessionId];
