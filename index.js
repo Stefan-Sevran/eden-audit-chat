@@ -289,6 +289,30 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
   }
 }
 
+function calculateRecoveryEstimate(transcript) {
+  const text = (transcript || "").toLowerCase();
+
+  const missedMatch = text.match(/(\d+)\s*(missed calls|missed call|calls)/i);
+  const lateMatch = text.match(/(\d+)\s*(late replies|late reply|messages|inquiries|inquiries per week|replies)/i);
+
+  const missedCallsPerWeek = missedMatch ? Number(missedMatch[1]) : 10;
+  const lateRepliesPerWeek = lateMatch ? Number(lateMatch[1]) : 10;
+
+  const patientValue = 3500;
+
+  const lowBookings =
+    missedCallsPerWeek * 4.3 * (1 / 3) +
+    lateRepliesPerWeek * 4.3 * (1 / 5);
+
+  const low = Math.round((lowBookings * patientValue) / 5000) * 5000;
+  const high = low * 2;
+
+  return {
+    revenue: `₱${low.toLocaleString()} - ₱${high.toLocaleString()}/month`,
+    expectedOutcome: `Estimated recoverable revenue is around ₱${low.toLocaleString()} - ₱${high.toLocaleString()}/month, based on recovering about 1 in 3 missed calls and 1 in 5 late replies.`
+  };
+}
+
 async function generateAudit(profileContext, transcript) {
   try {
 
