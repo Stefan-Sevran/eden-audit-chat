@@ -814,7 +814,7 @@ function createTelegramLeadCard(sessionId, summary) {
   const followUp = followMatch ? followMatch[1].trim() : "Review lead and follow up.";
 
   return `
-🔥 NEW CLINIC AUDIT LEAD
+${alertedSessions[sessionId] ? "🔁 UPDATED CLINIC AUDIT LEAD" : "🔥 NEW CLINIC AUDIT LEAD"}
 
 🏥 ${p.clinicName || "Unknown clinic"}
 📍 ${p.city || "Unknown city"}
