@@ -147,6 +147,7 @@ if (
 ) {
   profile.facebook = fb;
 }
+}
   for (const pattern of clinicPatterns) {
   const match = text.match(pattern);
 
