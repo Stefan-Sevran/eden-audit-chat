@@ -1115,6 +1115,16 @@ async function getAIReply(userText, sessionId = "default") {
     ensureProfile(sessionId);
     updateProfileFromText(sessionId, userText);
 
+const currentProfile = clinicProfiles[sessionId];
+
+if (
+  currentProfile?.website &&
+  !websiteFindingsBySession[sessionId]
+) {
+  websiteFindingsBySession[sessionId] =
+    await analyzeClinicWebsite(currentProfile.website);
+}
+    
     sessions[sessionId].push({
       role: "user",
       content: userText
