@@ -377,7 +377,13 @@ Return ONLY valid JSON:
   .replace(/```/g, "")
   .trim();
 
-return JSON.parse(rawAudit);
+const audit = JSON.parse(rawAudit);
+
+const recovery = calculateRecoveryEstimate(transcript);
+audit.revenue = recovery.revenue;
+audit.expectedOutcome = recovery.expectedOutcome;
+
+return audit;
 
   } catch (error) {
     console.error("Audit generation error:", error);
