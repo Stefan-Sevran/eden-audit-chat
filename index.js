@@ -887,11 +887,12 @@ const message = createTelegramLeadCard(sessionId, summary);
 });
   
   await sendTelegram(message);
-  if (hasContactInfo) {
+  if (hasImportantUpdate) {
   contactUpdatedSessions[sessionId] = true;
 }
-  alertedSessions[sessionId] = true;
 
+leadAlertSnapshots[sessionId] = alertSnapshot;
+alertedSessions[sessionId] = true;
 }
 
 app.get("/webhook", (req, res) => {
