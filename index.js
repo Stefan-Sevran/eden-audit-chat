@@ -453,8 +453,7 @@ function calculateRecoveryEstimate(transcript) {
   };
 }
 
-async function generateAudit(profileContext, transcript) {
-  try {
+async function generateAudit(profileContext, transcript, sessionId) {
 
     const prompt = `
 You are Eden Clinic Network's senior clinic growth consultant.
