@@ -878,7 +878,11 @@ if (leadAlertSnapshots[sessionId] === alertSnapshot) return;
 if (alertedSessions[sessionId] && !hasImportantUpdate) return;
   const transcript = formatTranscript(session);
   const profileContext = getProfileContext(sessionId);
-
+const audit = await generateAudit(profileContext, transcript);
+auditPreviewHtmlBySession[sessionId] = buildAuditHtml({
+  clinic: profile.clinicName || "Your Clinic",
+  audit
+});
 const message = createTelegramLeadCard(sessionId, summary);
   
   await saveLeadToGoogleSheets({
