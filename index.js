@@ -843,17 +843,6 @@ ${sessionId}
 async function maybeSendLeadAlert(sessionId, latestUserText) {
   const profile = clinicProfiles[sessionId] || {};
 
-  const hasContactInfo =
-    profile.email ||
-    profile.whatsapp ||
-    profile.website;
-
-  if (alertedSessions[sessionId]) {
-    if (!hasContactInfo || contactUpdatedSessions[sessionId]) {
-      return;
-    }
-  }
-
   if (!hasLeadSignal(latestUserText)) return;
 
   const session = sessions[sessionId] || [];
