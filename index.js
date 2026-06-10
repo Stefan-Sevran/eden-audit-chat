@@ -18,6 +18,7 @@ const alertedSessions = {};
 const leadAlertSnapshots = {};
 const contactUpdatedSessions = {};
 const clinicProfiles = {};
+const auditPreviewHtmlBySession = {};
 
 const SYSTEM_PROMPT = `
 You are Eden Clinic Network's AI Clinic Growth Auditor.
