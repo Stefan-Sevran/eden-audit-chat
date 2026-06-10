@@ -1165,6 +1165,9 @@ app.post("/chat", async (req, res) => {
 app.get("/audit-preview/:sessionId", async (req, res) => {
   try {
     const sessionId = req.params.sessionId;
+    if (auditPreviewHtmlBySession[sessionId]) {
+  return res.send(auditPreviewHtmlBySession[sessionId]);
+    }
     if (!sessions[sessionId] || sessions[sessionId].length === 0) {
   return res.send(buildAuditHtml({
     clinic: "Audit not ready yet",
