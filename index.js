@@ -477,6 +477,8 @@ ${profileContext}
 Conversation:
 ${transcript}
 
+${websiteContext}
+
 Important:
 
 Use information from the actual clinic conversation.
