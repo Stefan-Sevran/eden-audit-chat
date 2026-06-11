@@ -524,7 +524,19 @@ Return ONLY valid JSON:
   "Second most valuable improvement",
 
   "opportunity3":
-  "Third most valuable improvement"
+"Third most valuable improvement",
+
+"websiteFindings":
+"Brief homepage findings if website scan is available",
+
+"bookingFriction":
+"Brief note on website booking friction",
+
+"trustSignals":
+"Brief note on trust signals",
+
+"responseRisk":
+"Brief note on risk from slow or unclear contact options"
 }
 `;
 
