@@ -564,7 +564,7 @@ return audit;
   opportunity3: "Weak Follow-Up"
 };
   }
-
+}
 function safe(value, fallback = "") {
   if (
     value === undefined ||
