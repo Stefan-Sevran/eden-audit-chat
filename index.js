@@ -321,7 +321,7 @@ async function analyzeClinicWebsite(url) {
       message: "Website could not be reviewed automatically."
     };
   }
-
+}
 function getProfileContext(sessionId) {
   ensureProfile(sessionId);
   const p = clinicProfiles[sessionId];
