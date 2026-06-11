@@ -453,6 +453,18 @@ function calculateRecoveryEstimate(transcript) {
 }
 
 async function generateAudit(profileContext, transcript, sessionId) {
+    const websiteFindings = websiteFindingsBySession[sessionId];
+
+    const websiteContext = websiteFindings && !websiteFindings.error
+      ? `
+Website homepage scan:
+Reviewed URL: ${websiteFindings.reviewedUrl}
+Phone visible: ${websiteFindings.phoneVisible ? "Yes" : "No / unclear"}
+Booking CTA visible: ${websiteFindings.bookingCtaVisible ? "Yes" : "No / unclear"}
+Messenger or WhatsApp visible: ${websiteFindings.messengerWhatsappVisible ? "Yes" : "No / unclear"}
+Trust signals visible: ${websiteFindings.trustSignalsVisible ? "Yes" : "No / unclear"}
+`
+      : "";
   try {
     const prompt = `
 You are Eden Clinic Network's senior clinic growth consultant.
