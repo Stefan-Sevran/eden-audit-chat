@@ -938,7 +938,7 @@ async function createLeadSummary(session, sessionId) {
     const transcript = formatTranscript(session);
     const profileContext = getProfileContext(sessionId);
 
-    const audit = await generateAudit(profileContext, transcript);
+    const audit = await generateAudit(profileContext, transcript, sessionId);
 
 console.log("Audit:", audit);
 
@@ -1071,7 +1071,7 @@ if (leadAlertSnapshots[sessionId] === alertSnapshot) return;
 if (alertedSessions[sessionId] && !hasImportantUpdate) return;
   const transcript = formatTranscript(session);
   const profileContext = getProfileContext(sessionId);
-const audit = await generateAudit(profileContext, transcript);
+const audit = await generateAudit(profileContext, transcript, sessionId);
 auditPreviewHtmlBySession[sessionId] = buildAuditHtml({
   clinic: profile.clinicName || "Your Clinic",
   audit
@@ -1394,7 +1394,7 @@ app.get("/audit-preview/:sessionId", async (req, res) => {
     const transcript = formatTranscript(session);
     const profileContext = getProfileContext(sessionId);
     const profile = clinicProfiles[sessionId] || {};    
-    const audit = await generateAudit(profileContext, transcript);
+    const audit = await generateAudit(profileContext, transcript, sessionId);
 
     const html = buildAuditHtml({
       clinic:
