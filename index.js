@@ -474,6 +474,8 @@ Analyze this clinic conversation and return ONLY valid JSON.
 Clinic Profile:
 ${profileContext}
 
+${websiteContext}
+
 Conversation:
 ${transcript}
 
