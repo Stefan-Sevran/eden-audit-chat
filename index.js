@@ -809,7 +809,8 @@ function buildAuditHtml({ clinic, audit }) {
   const bookingFriction = safe(audit.bookingFriction, "Not enough information yet.");
   const trustSignals = safe(audit.trustSignals, "Not enough information yet.");
   const responseRisk = safe(audit.responseRisk, "Unknown");
-
+  const screenshotUrl = safe(audit.screenshotUrl, "");
+  
   return `
 <!DOCTYPE html>
 <html>
