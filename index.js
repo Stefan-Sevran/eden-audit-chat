@@ -393,13 +393,21 @@ const pricingVisible =
   /(price|pricing|fees|cost|rates|packages|starts at)/i.test(visibleText);
     
     return {
-      reviewedUrl: normalizedUrl,
-      phoneVisible,
-      bookingCtaVisible,
-      messengerWhatsappVisible,
-      trustSignalsVisible,
-      textSample: visibleText.slice(0, 2000)
-    };
+  reviewedUrl: normalizedUrl,
+  phoneVisible,
+  bookingCtaVisible,
+  messengerWhatsappVisible,
+  trustSignalsVisible,
+
+  onlineBookingVisible,
+  googleMapsVisible,
+  reviewsVisible,
+  doctorProfileVisible,
+  beforeAfterVisible,
+  pricingVisible,
+
+  textSample: visibleText.slice(0, 2000)
+};
 
   } catch (error) {
     console.error("Website analysis error:", error.message);
