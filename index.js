@@ -674,19 +674,25 @@ if (scan) {
       : "No visible phone number detected in the automated homepage scan.";
 
   audit.bookingFriction =
-    scan.bookingCtaVisible
-      ? "Booking CTA detected in the automated homepage scan."
-      : "No booking CTA detected in the automated homepage scan.";
+    [
+      scan.bookingCtaVisible ? "Booking CTA detected." : "No booking CTA detected.",
+      scan.onlineBookingVisible ? "Online booking option detected." : "No clear online booking option detected."
+    ].join(" ");
 
   audit.trustSignals =
-    scan.trustSignalsVisible
-      ? "Trust signals detected in the automated homepage scan."
-      : "No trust signals detected in the automated homepage scan.";
+    [
+      scan.trustSignalsVisible ? "General trust signals detected." : "General trust signals not detected.",
+      scan.reviewsVisible ? "Reviews/testimonials detected." : "Reviews/testimonials not detected.",
+      scan.doctorProfileVisible ? "Doctor/team profile detected." : "Doctor/team profile not detected.",
+      scan.beforeAfterVisible ? "Before-after/gallery proof detected." : "Before-after/gallery proof not detected."
+    ].join(" ");
 
   audit.responseRisk =
-    scan.messengerWhatsappVisible
-      ? "Messenger or WhatsApp contact option detected in the automated homepage scan."
-      : "No Messenger or WhatsApp contact option detected in the automated homepage scan.";
+    [
+      scan.messengerWhatsappVisible ? "Messenger or WhatsApp contact option detected." : "No Messenger or WhatsApp contact option detected.",
+      scan.googleMapsVisible ? "Google Maps/directions link detected." : "Google Maps/directions link not detected.",
+      scan.pricingVisible ? "Pricing/package information detected." : "Pricing/package information not detected."
+    ].join(" ");
 }
     
 const recovery = calculateRecoveryEstimate(transcript);
