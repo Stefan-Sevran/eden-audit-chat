@@ -638,6 +638,7 @@ Return ONLY valid JSON:
   .trim();
 
 const audit = JSON.parse(rawAudit);
+
 const scan = websiteFindingsBySession[sessionId];
 
 if (scan) {
