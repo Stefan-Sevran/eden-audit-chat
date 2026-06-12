@@ -139,8 +139,31 @@ function updateProfileFromText(sessionId, text) {
   if (phoneMatch) profile.whatsapp = phoneMatch[0];
 
   const websiteMatch = text.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|ph|net|org|clinic|live)[^\s]*)/i);
-  if (websiteMatch) profile.website = websiteMatch[0];
+  if (websiteMatch) {
+  const foundWebsite = websiteMatch[0].trim();
 
+  const blockedWebsites = [
+    "clinicnet.live",
+    "eden-audit-chat.onrender.com"
+  ];
+
+  const isBlockedWebsite = blockedWebsites.some(site =>
+    foundWebsite.toLowerCase().includes(site)
+  );
+
+  const websiteWasExplicit =
+    lower.includes("our website") ||
+    lower.includes("my website") ||
+    lower.includes("website is") ||
+    lower.includes("site is") ||
+    lower.includes("www.") ||
+    lower.includes("http");
+
+  if (!isBlockedWebsite && websiteWasExplicit) {
+    profile.website = foundWebsite;
+  }
+}
+  
   const clinicPatterns = [
 /i run ([^.\n,]+)/i,
 /i own ([^.\n,]+)/i,
