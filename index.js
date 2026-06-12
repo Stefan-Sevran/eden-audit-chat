@@ -520,13 +520,21 @@ function calculateRecoveryEstimate(transcript) {
   const valueMatch = text.match(/₱?\s?(\d{3,6})\s*(per booking|per patient|average|avg)/i);
   const conversionMatch = text.match(/(\d{1,3})\s*%/i);
 
-  const missedCallsPerWeek = missedMatch ? Number(missedMatch[1]) : 0;
+  let missedCallsPerWeek = missedMatch ? Number(missedMatch[1]) : 0;
   const lateRepliesPerWeek = lateMatch ? Number(lateMatch[1]) : 0;
 
   const patientValue = valueMatch ? Number(valueMatch[1]) : 3500;
   const safePatientValue = patientValue > 0 ? patientValue : 3500;
-  const conversionRate = conversionMatch ? Number(conversionMatch[1]) / 100 : null;
+  let conversionRate = conversionMatch ? Number(conversionMatch[1]) / 100 : null;
 
+if (!missedCallsPerWeek) {
+  missedCallsPerWeek = 10;
+}
+
+if (!conversionRate) {
+  conversionRate = 0.3;
+}
+  
   let recoveredBookingsPerMonth = 0;
   let explanation = "";
 
