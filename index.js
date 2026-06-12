@@ -524,6 +524,7 @@ function calculateRecoveryEstimate(transcript) {
   const lateRepliesPerWeek = lateMatch ? Number(lateMatch[1]) : 0;
 
   const patientValue = valueMatch ? Number(valueMatch[1]) : 3500;
+  const safePatientValue = patientValue > 0 ? patientValue : 3500;
   const conversionRate = conversionMatch ? Number(conversionMatch[1]) / 100 : null;
 
   let recoveredBookingsPerMonth = 0;
@@ -531,16 +532,16 @@ function calculateRecoveryEstimate(transcript) {
 
   if (missedCallsPerWeek && conversionRate) {
     recoveredBookingsPerMonth = missedCallsPerWeek * conversionRate * 4;
-    explanation = `Based on ${missedCallsPerWeek} missed calls per week, ${Math.round(conversionRate * 100)}% stated conversion, and ₱${patientValue.toLocaleString()} average booking value.`;
+    explanation = `Based on ${missedCallsPerWeek} missed calls per week, ${Math.round(conversionRate * 100)}% stated conversion, and ₱${safepatientValue.toLocaleString()} average booking value.`;
   } else {
     recoveredBookingsPerMonth =
       missedCallsPerWeek * 4.3 * (1 / 3) +
       lateRepliesPerWeek * 4.3 * (1 / 5);
 
-    explanation = `Based on a rough benchmark of recovering about 1 in 3 missed calls and 1 in 5 delayed replies, using ₱${patientValue.toLocaleString()} average booking value.`;
+    explanation = `Based on a rough benchmark of recovering about 1 in 3 missed calls and 1 in 5 delayed replies, using ₱${safepatientValue.toLocaleString()} average booking value.`;
   }
 
-  const estimate = Math.round((recoveredBookingsPerMonth * patientValue) / 5000) * 5000;
+  const estimate = Math.round((recoveredBookingsPerMonth * safepatientValue) / 5000) * 5000;
 
   return {
     revenue: `₱${estimate.toLocaleString()}/month`,
