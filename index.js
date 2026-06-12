@@ -342,6 +342,32 @@ function normalizeWebsiteUrl(url) {
   return clean;
 }
 
+async function takeWebsiteScreenshot(url) {
+  try {
+    const accessKey = process.env.SCREENSHOT_ACCESS_KEY;
+    const secretKey = process.env.SCREENSHOT_SECRET_KEY;
+
+    if (!accessKey || !secretKey || !url) {
+      return null;
+    }
+
+    const screenshotUrl =
+      "https://api.screenshotone.com/take" +
+      `?access_key=${accessKey}` +
+      `&secret_key=${secretKey}` +
+      `&url=${encodeURIComponent(url)}` +
+      `&full_page=true` +
+      `&viewport_width=1280` +
+      `&viewport_height=1600` +
+      `&format=png`;
+
+    return screenshotUrl;
+  } catch (error) {
+    console.error("Screenshot error:", error.message);
+    return null;
+  }
+}
+
 async function analyzeClinicWebsite(url) {
   try {
     const normalizedUrl = normalizeWebsiteUrl(url);
