@@ -708,6 +708,8 @@ const audit = JSON.parse(rawAudit);
 const scan = websiteFindingsBySession[sessionId];
 
 if (scan) {
+  audit.screenshotUrl = scan.screenshotUrl || "";
+  
   audit.websiteFindings =
     scan.phoneVisible
       ? "Phone/contact information detected in the automated homepage scan."
