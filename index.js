@@ -1318,8 +1318,12 @@ if (
   currentProfile?.website &&
   !websiteFindingsBySession[sessionId]
 ) {
+  console.log("Running website scan for:", currentProfile.website);
+
   websiteFindingsBySession[sessionId] =
     await analyzeClinicWebsite(currentProfile.website);
+
+  console.log("Website scan result:", websiteFindingsBySession[sessionId]);
 }
     
     sessions[sessionId].push({
