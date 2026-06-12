@@ -1016,7 +1016,8 @@ ${alertedSessions[sessionId] ? "🔁 UPDATED CLINIC AUDIT LEAD" : "🔥 NEW CLIN
 🏥 ${p.clinicName || "Unknown clinic"}
 📍 ${p.city || "Unknown city"}
 🏷️ ${p.clinicType || "Unknown type"}
-🌡️ ${temperature} (${intent})
+🌡️ ${intent} of 10
+${temperature}
 
 🌐 ${p.website || "No website captured"}
 📧 ${p.email || "No email captured"}
