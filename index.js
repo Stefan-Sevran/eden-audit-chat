@@ -1051,7 +1051,7 @@ border:1px solid #e5e7eb;
   <p><strong>Booking friction:</strong> ${bookingFriction}</p>
   <p><strong>Trust signals:</strong> ${trustSignals}</p>
   <p><strong>Response risk:</strong> ${responseRisk}</p>
-
+${screenshotUrl ? `<p><strong>Website screenshot:</strong> <a href="${screenshotUrl}" target="_blank">Open screenshot</a></p>` : ""}
 </div>
 
 <div style="
