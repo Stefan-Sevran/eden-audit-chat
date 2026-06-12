@@ -370,13 +370,13 @@ async function takeWebsiteScreenshot(url) {
 
 async function analyzeClinicWebsite(url) {
   try {
-    const normalizedUrl = normalizeWebsiteUrl(url);
+    
+const normalizedUrl = normalizeWebsiteUrl(url);
 
 const screenshotUrl =
   await takeWebsiteScreenshot(normalizedUrl);
 
 const response = await fetch(normalizedUrl, {
-    const response = await fetch(normalizedUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 EdenClinicAuditBot"
       }
