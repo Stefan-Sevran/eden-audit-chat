@@ -374,6 +374,24 @@ async function analyzeClinicWebsite(url) {
     const trustSignalsVisible =
       /(review|reviews|testimonial|testimonials|before and after|doctor|licensed|certified|years|patients|rating|award)/i.test(visibleText);
 
+    const onlineBookingVisible =
+  /(online booking|book online|schedule online|reserve online)/i.test(visibleText);
+
+const googleMapsVisible =
+  /(google maps|maps.google|directions)/i.test(html);
+
+const reviewsVisible =
+  /(review|reviews|testimonial|testimonials|rating)/i.test(visibleText);
+
+const doctorProfileVisible =
+  /(doctor|dentist|orthodontist|physician|our team|meet the doctor|meet the team)/i.test(visibleText);
+
+const beforeAfterVisible =
+  /(before and after|before\/after|gallery|results)/i.test(visibleText);
+
+const pricingVisible =
+  /(price|pricing|fees|cost|rates|packages|starts at)/i.test(visibleText);
+    
     return {
       reviewedUrl: normalizedUrl,
       phoneVisible,
