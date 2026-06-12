@@ -1005,7 +1005,9 @@ function createTelegramLeadCard(sessionId, summary) {
   const followMatch = summary.match(/Recommended follow-up:\s*([\s\S]*)/i);
 
   const temperature = tempMatch ? tempMatch[1].trim() : "Unknown";
-  const intent = intentMatch ? intentMatch[1].trim() : "Unknown";
+
+let intent = intentMatch ? intentMatch[1].trim() : "Unknown";
+intent = intent.match(/\d+/)?.[0] || intent;
   const opportunity = opportunityMatch ? opportunityMatch[1].trim() : "Unknown";
   const problem = problemMatch ? problemMatch[1].trim() : "Unknown";
   const followUp = followMatch ? followMatch[1].trim() : "Review lead and follow up.";
