@@ -638,7 +638,30 @@ Return ONLY valid JSON:
   .trim();
 
 const audit = JSON.parse(rawAudit);
+const scan = websiteFindingsBySession[sessionId];
 
+if (scan) {
+  audit.websiteFindings =
+    scan.phoneVisible
+      ? "Phone/contact information detected in the automated homepage scan."
+      : "No visible phone number detected in the automated homepage scan.";
+
+  audit.bookingFriction =
+    scan.bookingCtaVisible
+      ? "Booking CTA detected in the automated homepage scan."
+      : "No booking CTA detected in the automated homepage scan.";
+
+  audit.trustSignals =
+    scan.trustSignalsVisible
+      ? "Trust signals detected in the automated homepage scan."
+      : "No trust signals detected in the automated homepage scan.";
+
+  audit.responseRisk =
+    scan.messengerWhatsappVisible
+      ? "Messenger or WhatsApp contact option detected in the automated homepage scan."
+      : "No Messenger or WhatsApp contact option detected in the automated homepage scan.";
+}
+    
 const recovery = calculateRecoveryEstimate(transcript);
 audit.revenue = recovery.revenue;
 audit.expectedOutcome = recovery.expectedOutcome;
