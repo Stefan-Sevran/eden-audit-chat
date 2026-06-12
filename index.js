@@ -424,6 +424,7 @@ const pricingVisible =
     
     return {
   reviewedUrl: normalizedUrl,
+  screenshotUrl,
   phoneVisible,
   bookingCtaVisible,
   messengerWhatsappVisible,
