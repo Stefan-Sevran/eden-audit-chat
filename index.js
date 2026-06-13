@@ -372,6 +372,7 @@ async function analyzeClinicWebsite(url) {
 const normalizedUrl = normalizeWebsiteUrl(url);
 
 const screenshotUrl =
+  console.log("Taking screenshot of:", normalizedUrl);
   await takeWebsiteScreenshot(normalizedUrl);
 
 const response = await fetch(normalizedUrl, {
