@@ -186,25 +186,27 @@ function updateProfileFromText(sessionId, text) {
   if (phoneMatch) profile.whatsapp = phoneMatch[0];
 
   const websiteMatch = text.match(/(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|ph|net|org|clinic|live)[^\s]*)/i);
-  if (websiteMatch) {
-  const foundWebsite = websiteMatch[0].trim();
+
+if (websiteMatch) {
+  const foundWebsite = websiteMatch[0]
+    .trim()
+    .replace(/[),.;]+$/g, "");
 
   const blockedWebsites = [
     "clinicnet.live",
-    "eden-audit-chat.onrender.com"
+    "eden-audit-chat.onrender.com",
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "protonmail.com"
   ];
 
   const isBlockedWebsite = blockedWebsites.some(site =>
     foundWebsite.toLowerCase().includes(site)
   );
 
-  const websiteWasExplicit =
-    lower.includes("website") ||
-    lower.includes("site") ||
-    lower.includes("www.") ||
-    lower.includes("http");
-
-  if (!isBlockedWebsite && websiteWasExplicit) {
+  if (!isBlockedWebsite) {
     profile.website = foundWebsite;
     console.log("Website captured:", profile.website);
   }
