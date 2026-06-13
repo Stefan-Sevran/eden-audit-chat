@@ -345,26 +345,23 @@ function normalizeWebsiteUrl(url) {
 async function takeWebsiteScreenshot(url) {
   try {
     const accessKey = process.env.SCREENSHOT_ACCESS_KEY;
-    const secretKey = process.env.SCREENSHOT_SECRET_KEY;
 
-    if (!accessKey || !secretKey || !url) {
-      return null;
+    if (!accessKey || !url) {
+      return "";
     }
 
-    const screenshotUrl =
+    return (
       "https://api.screenshotone.com/take" +
       `?access_key=${accessKey}` +
-      `&secret_key=${secretKey}` +
       `&url=${encodeURIComponent(url)}` +
       `&full_page=true` +
       `&viewport_width=1280` +
       `&viewport_height=1600` +
-      `&format=png`;
-
-    return screenshotUrl;
+      `&format=png`
+    );
   } catch (error) {
     console.error("Screenshot error:", error.message);
-    return null;
+    return "";
   }
 }
 
