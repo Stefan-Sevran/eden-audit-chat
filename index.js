@@ -199,15 +199,14 @@ function updateProfileFromText(sessionId, text) {
   );
 
   const websiteWasExplicit =
-    lower.includes("our website") ||
-    lower.includes("my website") ||
-    lower.includes("website is") ||
-    lower.includes("site is") ||
+    lower.includes("website") ||
+    lower.includes("site") ||
     lower.includes("www.") ||
     lower.includes("http");
 
   if (!isBlockedWebsite && websiteWasExplicit) {
     profile.website = foundWebsite;
+    console.log("Website captured:", profile.website);
   }
 }
   
