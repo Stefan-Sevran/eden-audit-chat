@@ -346,19 +346,21 @@ function normalizeWebsiteUrl(url) {
 async function takeWebsiteScreenshot(url) {
   try {
     const accessKey = process.env.SCREENSHOT_ACCESS_KEY;
+    const secretKey = process.env.SCREENSHOT_SECRET_KEY;
 
-    if (!accessKey || !url) {
+    if (!accessKey || !secretKey || !url) {
       return "";
     }
 
     return (
       "https://api.screenshotone.com/take" +
-      `?access_key=${accessKey}` +
-      `&url=${encodeURIComponent(url)}` +
-      `&full_page=true` +
-      `&viewport_width=1280` +
-      `&viewport_height=1600` +
-      `&format=png`
+      "?access_key=" + encodeURIComponent(accessKey.trim()) +
+      "&secret_key=" + encodeURIComponent(secretKey.trim()) +
+      "&url=" + encodeURIComponent(url) +
+      "&full_page=true" +
+      "&viewport_width=1280" +
+      "&viewport_height=1600" +
+      "&format=png"
     );
   } catch (error) {
     console.error("Screenshot error:", error.message);
