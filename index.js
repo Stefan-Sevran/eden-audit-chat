@@ -346,18 +346,14 @@ function normalizeWebsiteUrl(url) {
 async function takeWebsiteScreenshot(url) {
   try {
     const accessKey = process.env.SCREENSHOT_ACCESS_KEY;
-    const secretKey = process.env.SCREENSHOT_SECRET_KEY;
-console.log("Access key exists:", !!accessKey);
-console.log("Secret key exists:", !!secretKey);
-console.log("URL:", url);
-    if (!accessKey || !secretKey || !url) {
+
+    if (!accessKey || !url) {
       return "";
     }
-console.log("Generating screenshot URL...");
+
     return (
       "https://api.screenshotone.com/take" +
-      "?access_key=" + encodeURIComponent(accessKey.trim()) +
-      "&secret_key=" + encodeURIComponent(secretKey.trim()) +
+      "?access_key=" + encodeURIComponent(accessKey) +
       "&url=" + encodeURIComponent(url) +
       "&full_page=true" +
       "&viewport_width=1280" +
