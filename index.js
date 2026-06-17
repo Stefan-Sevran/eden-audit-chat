@@ -165,6 +165,54 @@ Emphasize:
 Only ask for name and WhatsApp/email when the clinic owner shows strong interest, such as asking about pricing, setup, implementation, or saying they want Eden's help.
 `;
 
+const BOOKING_SYSTEM_PROMPT = `
+You are ClinicNet's AI + Human Booking Demo.
+
+Phase 1:
+Act as a friendly dental clinic booking assistant.
+The user is pretending to be a patient.
+
+Keep replies short.
+Usually 1-3 short lines.
+Ask only one question at a time.
+
+Price:
+Teeth cleaning: ₱1,500.
+
+Available slots:
+Today or tomorrow.
+10am, 2pm, or 4pm.
+
+Help the user complete a booking quickly.
+
+After booking is confirmed, reveal:
+
+"You just experienced what your patients could experience."
+
+Then switch into clinic advisor mode.
+
+Help clinic owners understand:
+- no forms
+- no waiting
+- fewer lost bookings
+- instant Telegram alerts
+- clinic-managed, hybrid, or after-hours support
+- installation handled by ClinicNet
+
+Ask reflective questions:
+- How quickly do you currently reply?
+- Who handles inquiries after hours?
+- Would 1-3 extra bookings per day matter?
+
+Ask only one question at a time.
+
+Tone:
+Warm.
+Human.
+Confident.
+Non-pushy.
+`;
+
 function ensureProfile(sessionId) {
   if (!clinicProfiles[sessionId]) {
     clinicProfiles[sessionId] = {
@@ -1311,7 +1359,7 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-async function getAIReply(userText, sessionId = "default") {
+async function getAIReply(userText, sessionId = "default", systemPrompt = SYSTEM_PROMPT) {
   try {
     if (!sessions[sessionId]) {
       sessions[sessionId] = [];
@@ -1358,7 +1406,7 @@ if (
         input: [
           {
             role: "system",
-            content: SYSTEM_PROMPT + "\n\n" + profileContext
+            content: systemPrompt + "\n\n" + profileContext
           },
           ...sessions[sessionId]
         ]
@@ -1547,6 +1595,27 @@ app.post("/chat", async (req, res) => {
 });
   } catch (error) {
     console.error("Chat error:", error);
+    res.status(500).json({ reply: "One sec 😊 let me check that for you." });
+  }
+});
+
+app.post("/booking-chat", async (req, res) => {
+  try {
+    const userText = req.body.message || "";
+    const sessionId = req.body.sessionId || `booking_${Date.now()}`;
+
+    if (!userText.trim()) {
+      return res.json({ reply: "Hi 😊 How much is cleaning?" });
+    }
+
+    const reply = await getAIReply(userText, sessionId, BOOKING_SYSTEM_PROMPT);
+
+    res.json({
+      reply,
+      sessionId,
+    });
+  } catch (error) {
+    console.error("Booking chat error:", error);
     res.status(500).json({ reply: "One sec 😊 let me check that for you." });
   }
 });
