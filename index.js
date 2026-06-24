@@ -575,6 +575,19 @@ function hasLeadSignal(text) {
 
   const hasIntent =
     lower.includes("interested") ||
+    lower.includes("useful") ||
+    lower.includes("helpful") ||
+    lower.includes("could work") ||
+    lower.includes("could be helpful") ||
+    lower.includes("tell me more") ||
+    lower.includes("how does it work") ||
+    lower.includes("telegram") ||
+    lower.includes("after-hours") ||
+    lower.includes("after hours") ||
+    lower.includes("booking") ||
+    lower.includes("clinicnet") ||
+    lower.includes("yes") ||
+    lower.includes("maybe") ||
     lower.includes("how much") ||
     lower.includes("pricing") ||
     lower.includes("price") ||
