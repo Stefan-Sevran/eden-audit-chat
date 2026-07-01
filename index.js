@@ -1322,7 +1322,27 @@ Session:
 ${sessionId}
 `;
 }
-  
+
+async function sharedLeadPipeline(sessionId, latestUserText) {
+
+  // Every few messages, improve the profile using AI
+  if ((sessions[sessionId] || []).length % 6 === 0) {
+    try {
+      await extractProfileWithAI(sessionId);
+    } catch (err) {
+      console.error("Profile extraction:", err);
+    }
+  }
+
+  // Send Telegram + Google Sheets updates if the lead becomes interesting
+  try {
+    await maybeSendLeadAlert(sessionId, latestUserText);
+  } catch (err) {
+    console.error("Lead pipeline:", err);
+  }
+
+}
+
 async function maybeSendLeadAlert(sessionId, latestUserText) {
   const profile = clinicProfiles[sessionId] || {};
 
