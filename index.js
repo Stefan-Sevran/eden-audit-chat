@@ -1793,6 +1793,8 @@ app.post("/chat", async (req, res) => {
     const userText = req.body.message || "";
     const sessionId = req.body.sessionId || "website-default";
 
+sessionLeadType[sessionId] = "audit";
+    
     if (!userText.trim()) {
       return res.json({ reply: "Hi 😊 What is your clinic name and website?" });
     }
@@ -1814,6 +1816,8 @@ app.post("/booking-chat", async (req, res) => {
     const userText = req.body.message || "";
     const sessionId = req.body.sessionId || `booking_${Date.now()}`;
 
+sessionLeadType[sessionId] = "booking";
+    
     if (!userText.trim()) {
       return res.json({ reply: "Hi 😊 How much is cleaning?" });
     }
@@ -1834,7 +1838,9 @@ app.post("/revenue-receptionist-chat", async (req, res) => {
   try {
     const userText = req.body.message || "";
     const sessionId = req.body.sessionId || `revenue_${Date.now()}`;
-
+    
+sessionLeadType[sessionId] = "receptionist";
+    
     if (!userText.trim()) {
       return res.json({
         reply:
