@@ -1506,11 +1506,7 @@ if (
 
     sessions[sessionId] = sessions[sessionId].slice(-50);
 
-    try {
-  await maybeSendLeadAlert(sessionId, userText);
-} catch (leadError) {
-  console.error("Lead alert failed:", leadError);
-}
+    await sharedLeadPipeline(sessionId, userText);
 
     return reply.trim();
   } catch (error) {
