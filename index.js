@@ -1445,7 +1445,7 @@ intent = intent.match(/\d+/)?.[0] || intent;
   const followUp = followMatch ? followMatch[1].trim() : "Review lead and follow up.";
 
   return `
-${alertedSessions[sessionId] ? "🔁 UPDATED CLINIC AUDIT LEAD" : "🔥 NEW CLINIC AUDIT LEAD"}
+${alertedSessions[sessionId] ? "🔁 UPDATED " + leadHeader : leadHeader}
 
 🏥 ${p.clinicName || "Unknown clinic"}
 📍 ${p.city || "Unknown city"}
