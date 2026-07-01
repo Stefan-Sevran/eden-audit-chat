@@ -1845,7 +1845,7 @@ app.post("/revenue-receptionist-chat", async (req, res) => {
     const reply = await getAIReply(
       userText,
       sessionId,
-      REVENUE_RECEPTIONIST_SYSTEM_PROMPT
+      RECEPTIONIST_SYSTEM_PROMPT
     );
 
     res.json({
