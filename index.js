@@ -1421,6 +1421,15 @@ If unknown, write Unknown.
 function createTelegramLeadCard(sessionId, summary) {
   const p = clinicProfiles[sessionId] || {};
 
+const leadType = sessionLeadType[sessionId] || "audit";
+
+const leadHeader =
+  leadType === "receptionist"
+    ? "🟢 NEW REVENUE RESCUE AI RECEPTIONIST™ LEAD"
+    : leadType === "booking"
+    ? "🟣 NEW AI BOOKING LEAD"
+    : "🔥 NEW CLINIC AUDIT LEAD";
+  
   const tempMatch = summary.match(/Lead temperature:\s*([^\n]+)/i);
   const intentMatch = summary.match(/Buying intent score 1-10:\s*([^\n]+)/i);
   const opportunityMatch = summary.match(/Estimated opportunity:\s*([\s\S]*?)(Buying intent|Lead temperature|Recommended follow-up|$)/i);
