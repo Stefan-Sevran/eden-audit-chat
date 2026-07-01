@@ -1337,9 +1337,9 @@ async function sharedLeadPipeline(sessionId, latestUserText) {
   // Send Telegram + Google Sheets updates if the lead becomes interesting
   try {
     await maybeSendLeadAlert(sessionId, latestUserText);
-  } catch (err) {
+} catch (err) {
     console.error("Lead pipeline:", err);
-  }
+}
 
 }
 
