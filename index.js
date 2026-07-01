@@ -1829,6 +1829,38 @@ app.post("/booking-chat", async (req, res) => {
   }
 });
 
+app.post("/revenue-receptionist-chat", async (req, res) => {
+  try {
+    const userText = req.body.message || "";
+    const sessionId = req.body.sessionId || `revenue_${Date.now()}`;
+
+    if (!userText.trim()) {
+      return res.json({
+        reply:
+          "Hi 👋 Many clinics lose bookings simply because patients don’t receive a fast reply.\n\nI’d be happy to see whether your clinic qualifies for a free AI Receptionist.\n\nWhat clinic do you run?",
+        sessionId
+      });
+    }
+
+    const reply = await getAIReply(
+      userText,
+      sessionId,
+      REVENUE_RECEPTIONIST_SYSTEM_PROMPT
+    );
+
+    res.json({
+      reply,
+      sessionId
+    });
+
+  } catch (error) {
+    console.error("Revenue receptionist chat error:", error);
+    res.status(500).json({
+      reply: "One sec 😊 let me check that for you."
+    });
+  }
+});
+
 app.get("/audit-preview/:sessionId", async (req, res) => {
   try {
     const sessionId = req.params.sessionId;
