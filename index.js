@@ -22,6 +22,9 @@ const auditPreviewHtmlBySession = {};
 const websiteFindingsBySession = {};
 const sessionLeadType = {};
 
+const sessionClinicId = {};
+const bookingAlertSnapshots = {};
+
 const CLINICS = {
   pearlsmile: {
     clinicId: "pearlsmile",
