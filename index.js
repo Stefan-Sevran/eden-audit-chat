@@ -1896,23 +1896,89 @@ sessionLeadType[sessionId] = "audit";
 app.post("/booking-chat", async (req, res) => {
   try {
     const userText = req.body.message || "";
-    const sessionId = req.body.sessionId || `booking_${Date.now()}`;
 
-sessionLeadType[sessionId] = "booking";
-    
-    if (!userText.trim()) {
-      return res.json({ reply: "Hi 😊 How much is cleaning?" });
+    const sessionId =
+      req.body.sessionId ||
+      `booking_${Date.now()}`;
+
+    const clinicId =
+      req.body.clinicId ||
+      "pearlsmile";
+
+    const clinic =
+      getClinicConfig(clinicId);
+
+    if (!clinic) {
+      console.warn(
+        "Unknown clinicId received:",
+        clinicId
+      );
+
+      return res.status(400).json({
+        reply:
+          "Sorry, this clinic is not configured yet.",
+        sessionId,
+        clinicId
+      });
     }
 
-    const reply = await getAIReply(userText, sessionId, BOOKING_SYSTEM_PROMPT);
+    sessionLeadType[sessionId] = "booking";
+
+    if (!userText.trim()) {
+      return res.json({
+        reply:
+          `Hi 😊 Welcome to ${clinic.clinicName}. ` +
+          `I’m ${clinic.assistantName}. How can I help you today?`,
+
+        sessionId,
+        clinicId,
+        clinicName: clinic.clinicName
+      });
+    }
+
+    const clinicBookingPrompt = `
+${BOOKING_SYSTEM_PROMPT}
+
+CURRENT CLINIC
+Clinic ID: ${clinic.clinicId}
+Clinic name: ${clinic.clinicName}
+Assistant name: ${clinic.assistantName}
+Clinic type: ${clinic.clinicType}
+City: ${clinic.city}
+Country: ${clinic.country}
+Timezone: ${clinic.timezone}
+Currency: ${clinic.currency}
+
+Important:
+You are speaking as ${clinic.assistantName}, the booking assistant for ${clinic.clinicName}.
+Do not mention another clinic.
+Do not invent clinic information that has not been provided.
+`;
+
+    const reply = await getAIReply(
+      userText,
+      sessionId,
+      clinicBookingPrompt
+    );
 
     res.json({
       reply,
       sessionId,
+      clinicId,
+      clinicName: clinic.clinicName,
+      assistantName: clinic.assistantName
     });
+
   } catch (error) {
-    console.error("Booking chat error:", error);
-    res.status(500).json({ reply: "One sec 😊 let me check that for you." });
+    console.error(
+      "Booking chat error:",
+      error
+    );
+
+    res.status(500).json({
+      reply:
+        "One sec 😊 let me check that for you."
+    });
   }
 });
 
