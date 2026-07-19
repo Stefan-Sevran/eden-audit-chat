@@ -24,6 +24,7 @@ const sessionLeadType = {};
 
 const sessionClinicId = {};
 const bookingAlertSnapshots = {};
+const patientBookings = {};
 
 const CLINICS = {
   pearlsmile: {
@@ -38,11 +39,149 @@ const CLINICS = {
     country: "Philippines",
     timezone: "Asia/Manila",
     currency: "PHP",
+    currencySymbol: "₱",
 
     status: "demo",
 
+    contact: {
+      phone: "+63 917 555 0148",
+      email: "hello@pearlsmile-demo.ph",
+      address: "Cebu Business Park, Cebu City",
+      mapUrl: "https://maps.google.com/?q=Cebu+Business+Park+Cebu+City"
+    },
+
+    languages: ["English", "Cebuano", "Tagalog"],
+
+    openingHours: {
+      monday: "9:00 AM–6:00 PM",
+      tuesday: "9:00 AM–6:00 PM",
+      wednesday: "9:00 AM–6:00 PM",
+      thursday: "9:00 AM–6:00 PM",
+      friday: "9:00 AM–6:00 PM",
+      saturday: "9:00 AM–5:00 PM",
+      sunday: "Closed"
+    },
+
+    bookingRules: {
+      sameDayAllowed: true,
+      confirmationRequired: true,
+      depositRequired: false,
+      cancellationNoticeHours: 24,
+      lateArrivalMinutes: 15,
+      emergencyInstruction:
+        "For heavy bleeding, facial swelling with breathing difficulty, severe trauma, or a life-threatening emergency, call local emergency services or go to the nearest emergency department immediately."
+    },
+
+    paymentMethods: ["Cash", "GCash", "Maya", "Major cards"],
+
+    insurancePolicy:
+      "The clinic can provide receipts and treatment documents. Insurance coverage depends on the patient's individual plan and must be verified with the insurer before treatment.",
+
+    availableSlots: ["10:00 AM", "2:00 PM", "4:00 PM"],
+
+    services: [
+      {
+        id: "cleaning",
+        name: "Teeth Cleaning",
+        aliases: ["cleaning", "oral prophylaxis", "prophylaxis"],
+        priceText: "₱1,500",
+        estimatedVisitValue: 1500,
+        durationMinutes: 45,
+        consultationRequired: false,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true
+      },
+      {
+        id: "whitening",
+        name: "Teeth Whitening",
+        aliases: ["whitening", "teeth whitening", "bleaching"],
+        priceText: "From ₱7,500",
+        estimatedVisitValue: 7500,
+        durationMinutes: 90,
+        consultationRequired: true,
+        consultationPrice: 500,
+        potentialServiceValueMin: 7500,
+        potentialServiceValueMax: 12000,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true
+      },
+      {
+        id: "braces_consultation",
+        name: "Braces Consultation",
+        aliases: ["braces", "orthodontics", "orthodontic consultation"],
+        priceText: "₱500 consultation",
+        estimatedVisitValue: 500,
+        durationMinutes: 30,
+        consultationRequired: true,
+        consultationPrice: 500,
+        potentialServiceName: "Braces treatment",
+        potentialServiceValueMin: 45000,
+        potentialServiceValueMax: 90000,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true
+      },
+      {
+        id: "implant_consultation",
+        name: "Dental Implant Consultation",
+        aliases: ["implant", "dental implant", "missing tooth"],
+        priceText: "₱500 consultation",
+        estimatedVisitValue: 500,
+        durationMinutes: 30,
+        consultationRequired: true,
+        consultationPrice: 500,
+        potentialServiceName: "Dental implant",
+        potentialServiceValueMin: 65000,
+        potentialServiceValueMax: 95000,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true
+      },
+      {
+        id: "veneers_consultation",
+        name: "Veneers Consultation",
+        aliases: ["veneers", "porcelain veneers"],
+        priceText: "₱500 consultation",
+        estimatedVisitValue: 500,
+        durationMinutes: 30,
+        consultationRequired: true,
+        consultationPrice: 500,
+        potentialServiceName: "Veneers",
+        potentialServiceValueMin: 12000,
+        potentialServiceValueMax: 25000,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true
+      },
+      {
+        id: "emergency_dental",
+        name: "Emergency Dental Assessment",
+        aliases: ["tooth pain", "emergency", "swelling", "broken tooth", "toothache"],
+        priceText: "Assessment from ₱800; treatment depends on findings",
+        estimatedVisitValue: 2000,
+        durationMinutes: 30,
+        consultationRequired: true,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true,
+        urgent: true
+      },
+      {
+        id: "kids_dentistry",
+        name: "Kids Dentistry Visit",
+        aliases: ["kids", "child", "children", "pediatric dentistry"],
+        priceText: "From ₱1,200",
+        estimatedVisitValue: 1200,
+        durationMinutes: 45,
+        consultationRequired: false,
+        aiCanRequestBooking: true,
+        humanConfirmationRequired: true
+      }
+    ],
+
     telegram: {
       bookingChatId: process.env.TELEGRAM_CHAT_ID_PEARLSMILE_BOOKINGS
+    },
+
+    googleSheets: {
+      clinicLabel: "PearlSmile Dental",
+      channelLabel: "Website AI booking chat"
     },
 
     commercialModel: {
@@ -72,7 +211,7 @@ const CLINICS = {
       }
     }
   }
-}
+};
 
 const SYSTEM_PROMPT = `
 You are Eden Clinic Network's AI Clinic Growth Auditor.
@@ -219,97 +358,102 @@ Only ask for name and WhatsApp/email when the clinic owner shows strong interest
 `;
 
 const BOOKING_SYSTEM_PROMPT = `
-You are ClinicNet's AI + Human Booking Demo.
+You are a professional patient booking receptionist for the clinic specified below.
+You are speaking to a real patient or prospective patient, not a clinic owner.
+Never switch into selling Eden, ClinicNet, AI services, or business consulting.
+Never ask which clinic the patient is trying to reach when the clinic is already specified.
 
-Phase 1:
-Act as a friendly dental clinic booking assistant.
-The user is pretending to be a patient.
+PRIMARY GOAL
+Help the patient get a useful answer and move smoothly toward a booking request.
 
-Keep replies short.
-Usually 1-3 short lines.
-Ask only one question at a time.
+STYLE
+- Warm, natural, reassuring, and concise.
+- Usually 1–3 short paragraphs.
+- Ask only one next-step question at a time.
+- Use the clinic assistant's name naturally, but do not repeat it in every message.
+- Match English, Tagalog, or Cebuano lightly when the patient uses it.
+- Never sound like a form or a sales bot.
 
-Price:
-Teeth cleaning: ₱1,500.
+BOOKING FLOW
+1. Identify the service or concern.
+2. Answer the immediate question using only the clinic facts supplied below.
+3. Ask for preferred date or time if not already provided.
+4. Ask for the patient's name.
+5. Ask for a phone, WhatsApp, email, or Messenger contact.
+6. Summarize the request clearly.
+7. Say the request is pending clinic confirmation.
 
-Available slots:
-Today or tomorrow.
-10am, 2pm, or 4pm.
+IMPORTANT BOOKING RULES
+- Never claim a slot is finally confirmed unless the clinic has confirmed it.
+- You may say: "I can request that slot for you" or "The team will confirm shortly."
+- If the patient already gives service, date, and time, do not ask for them again.
+- For consultations linked to high-value treatments, describe them as the appropriate first step without minimizing their importance.
+- Do not diagnose medical or dental conditions.
+- Do not guarantee treatment results or insurance coverage.
+- For emergency warning signs, follow the clinic's emergency instruction.
+- If information is not in the clinic facts, say the clinic team will confirm it.
 
-Help the user complete a booking quickly.
-
-After booking is confirmed, reveal:
-
-"You just experienced what your patients could experience."
-
-Then switch into clinic advisor mode.
-
-Help clinic owners understand:
-- no forms
-- no waiting
-- fewer lost bookings
-- instant Telegram alerts
-- clinic-managed, hybrid, or after-hours support
-- installation handled by ClinicNet
-
-Ask reflective questions:
-- How quickly do you currently reply?
-- Who handles inquiries after hours?
-- Would 1-3 extra bookings per day matter?
-
-Ask only one question at a time.
-
-Lead capture:
-
-If the user asks about pricing, setup, installation, Telegram alerts, after-hours support, or says the system could be useful, prioritize collecting contact details before giving lengthy explanations.
-If the user shows interest, curiosity, or buying intent, ask for contact details.
-
-Examples:
-- interested
-- useful
-- helpful
-- maybe
-- how much
-- how does it work
-- tell me more
-- after-hours support
-- Telegram alerts
-
-When interest appears, say:
-
-"Happy to help 😊 I can prepare a free setup recommendation for your clinic.
-
-What clinic do you run, and what city are you in?"
-
-Then ask:
-
-"What is the best WhatsApp number or email for sending the setup recommendation?"
-
-Ask only one question at a time.
-
-Collect:
-- clinic name
-- city
-- clinic type
-- website or Facebook page if available
-- WhatsApp or email
-
-Do not ask for all details at once.
-Ask one simple question at a time.
-
-Closing:
-When contact details are collected, say:
-"Perfect — we can prepare a free AI booking setup recommendation for your clinic. A ClinicNet advisor can follow up with you."
-Do not continue asking discovery questions after contact details have been collected.
-
-Tone:
-Warm.
-Human.
-Confident.
-Non-pushy.
-Practical.
-Do not sound like a form.
+PRIVACY
+Collect only information needed for booking and clinic follow-up.
 `;
+
+function formatClinicServices(clinic) {
+  return (clinic.services || [])
+    .map(service => {
+      const potential = service.potentialServiceName
+        ? ` Potential next service: ${service.potentialServiceName} (${clinic.currencySymbol}${service.potentialServiceValueMin?.toLocaleString()}–${clinic.currencySymbol}${service.potentialServiceValueMax?.toLocaleString()}).`
+        : "";
+
+      return `- ${service.name}: ${service.priceText}; approximately ${service.durationMinutes} minutes.${potential}`;
+    })
+    .join("\n");
+}
+
+function buildClinicBookingPrompt(clinic) {
+  const hours = Object.entries(clinic.openingHours || {})
+    .map(([day, value]) => `${day}: ${value}`)
+    .join("\n");
+
+  return `
+${BOOKING_SYSTEM_PROMPT}
+
+CURRENT CLINIC
+Clinic ID: ${clinic.clinicId}
+Clinic name: ${clinic.clinicName}
+Assistant name: ${clinic.assistantName}
+Clinic type: ${clinic.clinicType}
+Location: ${clinic.city}, ${clinic.country}
+Timezone: ${clinic.timezone}
+Currency: ${clinic.currency}
+Languages: ${(clinic.languages || []).join(", ")}
+
+OPENING HOURS
+${hours}
+
+AVAILABLE DEMO REQUEST TIMES
+${(clinic.availableSlots || []).join(", ")}
+The clinic must still confirm availability.
+
+SERVICES AND PRICES
+${formatClinicServices(clinic)}
+
+BOOKING AND CLINIC POLICIES
+Same-day requests: ${clinic.bookingRules?.sameDayAllowed ? "Allowed when available" : "Not offered"}
+Clinic confirmation required: ${clinic.bookingRules?.confirmationRequired ? "Yes" : "No"}
+Deposit required: ${clinic.bookingRules?.depositRequired ? "Yes" : "No"}
+Cancellation notice: ${clinic.bookingRules?.cancellationNoticeHours || 24} hours
+Late arrival guidance: Please alert the clinic if more than ${clinic.bookingRules?.lateArrivalMinutes || 15} minutes late.
+Insurance: ${clinic.insurancePolicy}
+Payment methods: ${(clinic.paymentMethods || []).join(", ")}
+Emergency instruction: ${clinic.bookingRules?.emergencyInstruction}
+
+FINAL IDENTITY RULES
+You are ${clinic.assistantName}, the booking receptionist for ${clinic.clinicName}.
+Do not mention another clinic.
+Do not mention Eden or ClinicNet unless the patient explicitly asks who powers the chat; then answer briefly that the clinic uses Eden Clinic Network technology.
+Do not invent clinic information.
+`;
+}
 
 const RECEPTIONIST_SYSTEM_PROMPT = `
 You are Eden Clinic Network's Revenue Rescue AI Receptionist™ Advisor.
@@ -456,6 +600,111 @@ function getClinicConfig(clinicId) {
 
 function getClinicName(clinicId) {
   return CLINICS[clinicId]?.clinicName || "Unknown clinic";
+}
+
+
+function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
+  if (!patientBookings[sessionId]) {
+    patientBookings[sessionId] = {
+      leadId: "",
+      clinicId,
+      patientName: "",
+      phone: "",
+      email: "",
+      serviceId: "",
+      serviceName: "",
+      preferredDate: "",
+      preferredTime: "",
+      bookingStatus: "NEW",
+      estimatedVisitValue: 0,
+      potentialServiceName: "",
+      potentialServiceValueMin: 0,
+      potentialServiceValueMax: 0,
+      humanFollowUpNeeded: false,
+      urgency: "NORMAL",
+      summary: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  return patientBookings[sessionId];
+}
+
+function createBookingLeadId(clinic, sessionId) {
+  const date = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+  const suffix = String(sessionId).replace(/[^a-zA-Z0-9]/g, "").slice(-5).toUpperCase();
+  return `${clinic.clinicCode}-${date}-${suffix || "LEAD"}`;
+}
+
+function findClinicService(clinic, text) {
+  const lower = String(text || "").toLowerCase();
+
+  return (clinic.services || []).find(service =>
+    [service.name, ...(service.aliases || [])]
+      .some(alias => lower.includes(String(alias).toLowerCase()))
+  ) || null;
+}
+
+function updatePatientBookingHeuristically(sessionId, clinicId, text) {
+  const clinic = getClinicConfig(clinicId);
+  if (!clinic) return;
+
+  const booking = ensurePatientBooking(sessionId, clinicId);
+  const source = String(text || "");
+
+  if (!booking.leadId) {
+    booking.leadId = createBookingLeadId(clinic, sessionId);
+  }
+
+  const email = source.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+  if (email) booking.email = email[0];
+
+  const phone = source.match(/(\+?\d[\d\s().-]{7,}\d)/);
+  if (phone) booking.phone = phone[0].trim();
+
+  const nameMatch =
+    source.match(/(?:my name is|i am|i'm|this is)\s+([a-zA-ZÀ-ÿ' -]{2,40})/i);
+
+  if (nameMatch) {
+    booking.patientName = nameMatch[1]
+      .replace(/\b(and|my|phone|number|whatsapp|email).*/i, "")
+      .trim();
+  }
+
+  const service = findClinicService(clinic, source);
+  if (service) {
+    booking.serviceId = service.id;
+    booking.serviceName = service.name;
+    booking.estimatedVisitValue = service.estimatedVisitValue || clinic.commercialModel.defaultVisitValue;
+    booking.potentialServiceName = service.potentialServiceName || "";
+    booking.potentialServiceValueMin = service.potentialServiceValueMin || 0;
+    booking.potentialServiceValueMax = service.potentialServiceValueMax || 0;
+    booking.urgency = service.urgent ? "URGENT" : booking.urgency;
+  }
+
+  const timeMatch = source.match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i);
+  if (timeMatch) booking.preferredTime = timeMatch[0].toUpperCase();
+
+  const dateMatch = source.match(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/i);
+  if (dateMatch) booking.preferredDate = dateMatch[0];
+
+  if (/book|appointment|schedule|reserve|slot/i.test(source)) {
+    booking.bookingStatus = "BOOKING_REQUESTED";
+  }
+
+  if (booking.patientName && (booking.phone || booking.email)) {
+    booking.bookingStatus = booking.bookingStatus === "NEW"
+      ? "CONTACT_CAPTURED"
+      : booking.bookingStatus;
+  }
+
+  if (booking.serviceName && booking.preferredDate && booking.preferredTime) {
+    booking.bookingStatus = "AWAITING_CLINIC";
+    booking.humanFollowUpNeeded = true;
+  }
+
+  booking.updatedAt = new Date().toISOString();
 }
 
 function ensureProfile(sessionId) {
@@ -1549,166 +1798,220 @@ ${sessionId}
 }
 
 function createBookingTelegramCard(sessionId) {
-  const clinicId =
-    sessionClinicId[sessionId] ||
-    "pearlsmile";
+  const clinicId = sessionClinicId[sessionId] || "pearlsmile";
+  const clinic = getClinicConfig(clinicId);
+  const booking = ensurePatientBooking(sessionId, clinicId);
 
-  const clinic =
-    getClinicConfig(clinicId);
+  if (!clinic) return "";
 
-  if (!clinic) {
-    return "";
-  }
+  const session = sessions[sessionId] || [];
+  const isUpdate = Boolean(bookingAlertSnapshots[sessionId]);
+  const latestPatientMessage = session
+    .filter(item => item.role === "user")
+    .slice(-1)[0]?.content || "No patient message captured";
 
-  const session =
-    sessions[sessionId] || [];
+  const estimatedFee = Math.round(
+    (booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue) *
+    (clinic.commercialModel.edenRate || 0)
+  );
 
-  const profile =
-    clinicProfiles[sessionId] || {};
-
-  const userMessages =
-    session
-      .filter(item => item.role === "user")
-      .map(item => item.content);
-
-  const latestPatientMessage =
-    userMessages[userMessages.length - 1] ||
-    "No patient message captured";
-
-  const recentConversation =
-    session
-      .slice(-6)
-      .map(item => {
-        const speaker =
-          item.role === "user"
-            ? "PATIENT"
-            : clinic.assistantName.toUpperCase();
-
-        return `${speaker}: ${item.content}`;
-      })
-      .join("\n\n");
-
-  const isUpdate =
-    Boolean(bookingAlertSnapshots[sessionId]);
+  const potentialText = booking.potentialServiceName
+    ? `\n🎯 Potential service: ${booking.potentialServiceName}\nPotential range: ${clinic.currencySymbol}${booking.potentialServiceValueMin.toLocaleString()}–${clinic.currencySymbol}${booking.potentialServiceValueMax.toLocaleString()}`
+    : "";
 
   return `
-${isUpdate
-  ? "🔁 UPDATED PATIENT BOOKING"
-  : "🦷 NEW PATIENT BOOKING"} — ${clinic.clinicName.toUpperCase()}
+${isUpdate ? "🔁 UPDATED PATIENT BOOKING" : "🦷 NEW PATIENT BOOKING"} — ${clinic.clinicName.toUpperCase()}
 
-🏥 Clinic: ${clinic.clinicName}
-🤖 Assistant: ${clinic.assistantName}
-📍 ${clinic.city}, ${clinic.country}
+🆔 Lead: ${booking.leadId}
+👤 Patient: ${booking.patientName || "Not captured yet"}
+📱 Contact: ${booking.phone || booking.email || "Not captured yet"}
 
-📱 Phone / WhatsApp:
-${profile.whatsapp || "Not captured yet"}
+🦷 Service: ${booking.serviceName || "Not identified yet"}
+📅 Requested date: ${booking.preferredDate || "Not captured yet"}
+🕒 Requested time: ${booking.preferredTime || "Not captured yet"}
+📌 Status: ${booking.bookingStatus}
+⚡ Urgency: ${booking.urgency}
 
-📧 Email:
-${profile.email || "Not captured yet"}
+💰 Observable visit value: ${clinic.currencySymbol}${(booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue).toLocaleString()}
+📊 Indicative Eden fee (${Math.round((clinic.commercialModel.edenRate || 0) * 100)}%): ${clinic.currencySymbol}${estimatedFee.toLocaleString()}${potentialText}
 
 💬 Latest patient message:
 ${latestPatientMessage}
 
-📝 Recent conversation:
-${recentConversation.slice(0, 2200)}
+🤝 Human follow-up: ${booking.humanFollowUpNeeded ? "Needed" : "Not yet required"}
+🔗 Channel: ${clinic.googleSheets?.channelLabel || "Website AI booking chat"}
 
-🔗 Channel:
-Website AI booking chat
-
-Session:
-${sessionId}
+Session: ${sessionId}
 `.trim();
 }
 
-async function maybeSendBookingAlert(
-  sessionId,
-  latestUserText
-) {
-  const clinicId =
-    sessionClinicId[sessionId] ||
-    "pearlsmile";
+async function extractPatientBookingWithAI(sessionId) {
+  try {
+    const clinicId = sessionClinicId[sessionId] || "pearlsmile";
+    const clinic = getClinicConfig(clinicId);
+    if (!clinic) return;
 
-  const clinic =
-    getClinicConfig(clinicId);
+    const booking = ensurePatientBooking(sessionId, clinicId);
+    const recentMessages = (sessions[sessionId] || []).slice(-12);
+    if (!recentMessages.length) return;
 
-  if (!clinic) {
-    console.warn(
-      "Booking alert clinic not found:",
-      clinicId
+    const allowedServices = (clinic.services || [])
+      .map(service => ({ id: service.id, name: service.name }))
+      .map(item => JSON.stringify(item))
+      .join(", ");
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `Extract patient booking information. Return JSON only. Do not guess.\nAllowed services: ${allowedServices}\nFields: patientName, phone, email, serviceId, serviceName, preferredDate, preferredTime, bookingStatus, urgency, summary.\nbookingStatus must be one of NEW, CONTACT_CAPTURED, BOOKING_REQUESTED, AWAITING_CLINIC. urgency must be NORMAL or URGENT.`
+          },
+          {
+            role: "user",
+            content: JSON.stringify(recentMessages)
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) return;
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content || "{}";
+    const extracted = JSON.parse(raw);
+
+    for (const key of ["patientName", "phone", "email", "preferredDate", "preferredTime", "summary"]) {
+      if (typeof extracted[key] === "string" && extracted[key].trim()) {
+        booking[key] = extracted[key].trim();
+      }
+    }
+
+    if (["NEW", "CONTACT_CAPTURED", "BOOKING_REQUESTED", "AWAITING_CLINIC"].includes(extracted.bookingStatus)) {
+      booking.bookingStatus = extracted.bookingStatus;
+    }
+
+    if (["NORMAL", "URGENT"].includes(extracted.urgency)) {
+      booking.urgency = extracted.urgency;
+    }
+
+    const service = (clinic.services || []).find(item =>
+      item.id === extracted.serviceId ||
+      item.name.toLowerCase() === String(extracted.serviceName || "").toLowerCase()
     );
 
-    return;
+    if (service) {
+      booking.serviceId = service.id;
+      booking.serviceName = service.name;
+      booking.estimatedVisitValue = service.estimatedVisitValue || clinic.commercialModel.defaultVisitValue;
+      booking.potentialServiceName = service.potentialServiceName || "";
+      booking.potentialServiceValueMin = service.potentialServiceValueMin || 0;
+      booking.potentialServiceValueMax = service.potentialServiceValueMax || 0;
+      if (service.urgent) booking.urgency = "URGENT";
+    }
+
+    booking.humanFollowUpNeeded = booking.bookingStatus === "AWAITING_CLINIC";
+    booking.updatedAt = new Date().toISOString();
+  } catch (error) {
+    console.error("Patient booking extraction error:", error.message);
   }
+}
 
-  const telegramChatId =
-    clinic.telegram?.bookingChatId;
+async function saveBookingToGoogleSheets(sessionId) {
+  if (!GOOGLE_SCRIPT_URL) return;
 
-  if (!telegramChatId) {
-    console.warn(
-      "Booking Telegram chat ID missing for:",
-      clinic.clinicName
-    );
+  const clinicId = sessionClinicId[sessionId] || "pearlsmile";
+  const clinic = getClinicConfig(clinicId);
+  const booking = ensurePatientBooking(sessionId, clinicId);
+  if (!clinic) return;
 
-    return;
+  try {
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recordType: "PATIENT_BOOKING",
+        timestamp: new Date().toISOString(),
+        created: booking.createdAt,
+        updated: booking.updatedAt,
+        leadId: booking.leadId,
+        sessionId,
+        clinicId,
+        clinic: clinic.clinicName,
+        channel: clinic.googleSheets?.channelLabel || "Website AI booking chat",
+        patientName: booking.patientName,
+        contact: booking.phone || booking.email,
+        phone: booking.phone,
+        email: booking.email,
+        service: booking.serviceName,
+        potentialService: booking.potentialServiceName,
+        requestedDate: booking.preferredDate,
+        requestedTime: booking.preferredTime,
+        status: booking.bookingStatus,
+        urgency: booking.urgency,
+        estimatedVisitValue: booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue,
+        edenRate: clinic.commercialModel.edenRate,
+        estimatedEdenFee: Math.round((booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue) * clinic.commercialModel.edenRate),
+        humanTeamUsed: booking.humanFollowUpNeeded ? "Yes" : "No",
+        telegramSent: "Yes",
+        summary: booking.summary || "",
+        transcript: formatTranscript(sessions[sessionId] || [])
+      })
+    });
+  } catch (error) {
+    console.error("Booking Google Sheets save error:", error.message);
   }
+}
 
-  const session =
-    sessions[sessionId] || [];
+async function maybeSendBookingAlert(sessionId, latestUserText) {
+  const clinicId = sessionClinicId[sessionId] || "pearlsmile";
+  const clinic = getClinicConfig(clinicId);
+  if (!clinic) return;
 
-  if (!session.length) return;
+  updatePatientBookingHeuristically(sessionId, clinicId, latestUserText);
+  await extractPatientBookingWithAI(sessionId);
 
-  /*
-  Send an initial alert when the patient shows
-  booking/service/contact intent.
-  */
+  const booking = ensurePatientBooking(sessionId, clinicId);
   const bookingSignal =
     hasLeadSignal(latestUserText) ||
-    /book|appointment|schedule|available|slot|cleaning|whitening|implant|braces|pain|consultation/i.test(
-      latestUserText
-    );
+    /book|appointment|schedule|available|slot|cleaning|whitening|implant|braces|pain|consultation|tooth|dental/i.test(latestUserText);
 
-  if (
-    !bookingSignal &&
-    !bookingAlertSnapshots[sessionId]
-  ) {
-    return;
-  }
+  if (!bookingSignal && !bookingAlertSnapshots[sessionId]) return;
 
-  const profile =
-    clinicProfiles[sessionId] || {};
-
-  const snapshot = [
-    session.length,
-    latestUserText,
-    profile.whatsapp || "",
-    profile.email || ""
+  const importantSnapshot = [
+    booking.patientName,
+    booking.phone,
+    booking.email,
+    booking.serviceId,
+    booking.preferredDate,
+    booking.preferredTime,
+    booking.bookingStatus,
+    booking.urgency
   ].join("|");
 
-  if (
-    bookingAlertSnapshots[sessionId] ===
-    snapshot
-  ) {
+  if (bookingAlertSnapshots[sessionId] === importantSnapshot) return;
+
+  const telegramChatId = clinic.telegram?.bookingChatId;
+  if (!telegramChatId) {
+    console.warn("Booking Telegram chat ID missing for:", clinic.clinicName);
     return;
   }
 
-  const message =
-    createBookingTelegramCard(sessionId);
-
+  const message = createBookingTelegramCard(sessionId);
   if (!message) return;
 
-  await sendTelegramTo(
-    telegramChatId,
-    message
-  );
+  await sendTelegramTo(telegramChatId, message);
+  bookingAlertSnapshots[sessionId] = importantSnapshot;
+  await saveBookingToGoogleSheets(sessionId);
 
-  bookingAlertSnapshots[sessionId] =
-    snapshot;
-
-  console.log(
-    "Booking alert sent:",
-    clinic.clinicName,
-    sessionId
-  );
+  console.log("Booking alert sent:", clinic.clinicName, sessionId);
 }
 
 async function sharedLeadPipeline(
@@ -1999,6 +2302,24 @@ ${transcript.slice(0, 3000)}
   }
 });
 
+app.get("/test-booking-telegram/:clinicId", async (req, res) => {
+  try {
+    const clinic = getClinicConfig(req.params.clinicId);
+    if (!clinic) return res.status(404).send("Unknown clinic");
+    if (!clinic.telegram?.bookingChatId) return res.status(400).send("Booking chat ID missing");
+
+    await sendTelegramTo(
+      clinic.telegram.bookingChatId,
+      `✅ ${clinic.clinicName} booking Telegram routing works.`
+    );
+
+    res.send(`${clinic.clinicName} booking Telegram test sent`);
+  } catch (error) {
+    console.error("Booking Telegram test error:", error);
+    res.status(500).send("Booking Telegram test failed");
+  }
+});
+
 app.get("/test-telegram", async (req, res) => {
   try {
     await sendTelegram("✅ Eden Telegram test alert works.");
@@ -2148,24 +2469,10 @@ app.post("/booking-chat", async (req, res) => {
       });
     }
 
-    const clinicBookingPrompt = `
-${BOOKING_SYSTEM_PROMPT}
+    ensurePatientBooking(sessionId, clinicId);
+    updatePatientBookingHeuristically(sessionId, clinicId, userText);
 
-CURRENT CLINIC
-Clinic ID: ${clinic.clinicId}
-Clinic name: ${clinic.clinicName}
-Assistant name: ${clinic.assistantName}
-Clinic type: ${clinic.clinicType}
-City: ${clinic.city}
-Country: ${clinic.country}
-Timezone: ${clinic.timezone}
-Currency: ${clinic.currency}
-
-Important:
-You are speaking as ${clinic.assistantName}, the booking assistant for ${clinic.clinicName}.
-Do not mention another clinic.
-Do not invent clinic information that has not been provided.
-`;
+    const clinicBookingPrompt = buildClinicBookingPrompt(clinic);
 
     const reply = await getAIReply(
       userText,
