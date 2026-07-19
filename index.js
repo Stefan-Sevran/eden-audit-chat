@@ -447,6 +447,14 @@ One question at a time.
 
 `;
 
+function getClinicConfig(clinicId) {
+  return CLINICS[clinicId] || null;
+}
+
+function getClinicName(clinicId) {
+  return CLINICS[clinicId]?.clinicName || "Unknown clinic";
+}
+
 function ensureProfile(sessionId) {
   if (!clinicProfiles[sessionId]) {
     clinicProfiles[sessionId] = {
