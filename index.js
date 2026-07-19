@@ -1711,24 +1711,69 @@ async function maybeSendBookingAlert(
   );
 }
 
-async function sharedLeadPipeline(sessionId, latestUserText) {
-
+async function sharedLeadPipeline(
+  sessionId,
+  latestUserText
+) {
   if (!sessions[sessionId]) return;
 
+  const leadType =
+    sessionLeadType[sessionId] ||
+    "audit";
+
+  /*
+  PATIENT BOOKING PIPELINE
+
+  Booking conversations go to the clinic's
+  dedicated Telegram group and do not enter
+  Eden's acquisition-alert pipeline.
+  */
+  if (leadType === "booking") {
+    try {
+      await maybeSendBookingAlert(
+        sessionId,
+        latestUserText
+      );
+    } catch (error) {
+      console.error(
+        "Booking alert pipeline error:",
+        error
+      );
+    }
+
+    return;
+  }
+
+  /*
+  EDEN ACQUISITION PIPELINE
+
+  Clinic Audit and AI Receptionist acquisition
+  leads continue using the existing pipeline.
+  */
   if (sessions[sessionId].length % 6 === 0) {
     try {
-      await extractProfileWithAI(sessionId);
-    } catch (err) {
-      console.error("Profile extraction:", err);
+      await extractProfileWithAI(
+        sessionId
+      );
+    } catch (error) {
+      console.error(
+        "Profile extraction:",
+        error
+      );
     }
   }
 
   try {
-    await maybeSendLeadAlert(sessionId, latestUserText);
-  } catch (err) {
-    console.error("Lead pipeline:", err);
+    await maybeSendLeadAlert(
+      sessionId,
+      latestUserText
+    );
+  } catch (error) {
+    console.error(
+      "Lead pipeline:",
+      error
+    );
   }
-
 }
 
 async function maybeSendLeadAlert(sessionId, latestUserText) {
