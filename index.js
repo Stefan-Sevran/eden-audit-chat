@@ -804,6 +804,22 @@ function formatTranscript(session) {
     .join("\n\n");
 }
 
+async function sendTelegramTo(chatId, text) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) {
+    console.log("Telegram token or chatId missing.");
+    return;
+  }
+
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text.slice(0, 3900)
+    })
+  });
+}
+
 async function sendTelegram(text) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.log("Telegram env vars missing.");
