@@ -2134,7 +2134,8 @@ app.post("/booking-chat", async (req, res) => {
     }
 
     sessionLeadType[sessionId] = "booking";
-
+    sessionClinicId[sessionId] = clinicId;
+    
     if (!userText.trim()) {
       return res.json({
         reply:
