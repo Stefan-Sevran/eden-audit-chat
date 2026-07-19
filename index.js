@@ -1548,6 +1548,78 @@ ${sessionId}
 `;
 }
 
+function createBookingTelegramCard(sessionId) {
+  const clinicId =
+    sessionClinicId[sessionId] ||
+    "pearlsmile";
+
+  const clinic =
+    getClinicConfig(clinicId);
+
+  if (!clinic) {
+    return "";
+  }
+
+  const session =
+    sessions[sessionId] || [];
+
+  const profile =
+    clinicProfiles[sessionId] || {};
+
+  const userMessages =
+    session
+      .filter(item => item.role === "user")
+      .map(item => item.content);
+
+  const latestPatientMessage =
+    userMessages[userMessages.length - 1] ||
+    "No patient message captured";
+
+  const recentConversation =
+    session
+      .slice(-6)
+      .map(item => {
+        const speaker =
+          item.role === "user"
+            ? "PATIENT"
+            : clinic.assistantName.toUpperCase();
+
+        return `${speaker}: ${item.content}`;
+      })
+      .join("\n\n");
+
+  const isUpdate =
+    Boolean(bookingAlertSnapshots[sessionId]);
+
+  return `
+${isUpdate
+  ? "🔁 UPDATED PATIENT BOOKING"
+  : "🦷 NEW PATIENT BOOKING"} — ${clinic.clinicName.toUpperCase()}
+
+🏥 Clinic: ${clinic.clinicName}
+🤖 Assistant: ${clinic.assistantName}
+📍 ${clinic.city}, ${clinic.country}
+
+📱 Phone / WhatsApp:
+${profile.whatsapp || "Not captured yet"}
+
+📧 Email:
+${profile.email || "Not captured yet"}
+
+💬 Latest patient message:
+${latestPatientMessage}
+
+📝 Recent conversation:
+${recentConversation.slice(0, 2200)}
+
+🔗 Channel:
+Website AI booking chat
+
+Session:
+${sessionId}
+`.trim();
+}
+
 async function sharedLeadPipeline(sessionId, latestUserText) {
 
   if (!sessions[sessionId]) return;
