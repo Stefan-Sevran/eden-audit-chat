@@ -1620,6 +1620,97 @@ ${sessionId}
 `.trim();
 }
 
+async function maybeSendBookingAlert(
+  sessionId,
+  latestUserText
+) {
+  const clinicId =
+    sessionClinicId[sessionId] ||
+    "pearlsmile";
+
+  const clinic =
+    getClinicConfig(clinicId);
+
+  if (!clinic) {
+    console.warn(
+      "Booking alert clinic not found:",
+      clinicId
+    );
+
+    return;
+  }
+
+  const telegramChatId =
+    clinic.telegram?.bookingChatId;
+
+  if (!telegramChatId) {
+    console.warn(
+      "Booking Telegram chat ID missing for:",
+      clinic.clinicName
+    );
+
+    return;
+  }
+
+  const session =
+    sessions[sessionId] || [];
+
+  if (!session.length) return;
+
+  /*
+  Send an initial alert when the patient shows
+  booking/service/contact intent.
+  */
+  const bookingSignal =
+    hasLeadSignal(latestUserText) ||
+    /book|appointment|schedule|available|slot|cleaning|whitening|implant|braces|pain|consultation/i.test(
+      latestUserText
+    );
+
+  if (
+    !bookingSignal &&
+    !bookingAlertSnapshots[sessionId]
+  ) {
+    return;
+  }
+
+  const profile =
+    clinicProfiles[sessionId] || {};
+
+  const snapshot = [
+    session.length,
+    latestUserText,
+    profile.whatsapp || "",
+    profile.email || ""
+  ].join("|");
+
+  if (
+    bookingAlertSnapshots[sessionId] ===
+    snapshot
+  ) {
+    return;
+  }
+
+  const message =
+    createBookingTelegramCard(sessionId);
+
+  if (!message) return;
+
+  await sendTelegramTo(
+    telegramChatId,
+    message
+  );
+
+  bookingAlertSnapshots[sessionId] =
+    snapshot;
+
+  console.log(
+    "Booking alert sent:",
+    clinic.clinicName,
+    sessionId
+  );
+}
+
 async function sharedLeadPipeline(sessionId, latestUserText) {
 
   if (!sessions[sessionId]) return;
