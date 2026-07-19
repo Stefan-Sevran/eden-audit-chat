@@ -22,6 +22,55 @@ const auditPreviewHtmlBySession = {};
 const websiteFindingsBySession = {};
 const sessionLeadType = {};
 
+const CLINICS = {
+  pearlsmile: {
+    clinicId: "pearlsmile",
+    clinicCode: "PSD",
+
+    clinicName: "PearlSmile Dental",
+    assistantName: "Maria",
+
+    clinicType: "Dental clinic",
+    city: "Cebu",
+    country: "Philippines",
+    timezone: "Asia/Manila",
+    currency: "PHP",
+
+    status: "demo",
+
+    telegram: {
+      bookingChatId: process.env.TELEGRAM_CHAT_ID_PEARLSMILE_BOOKINGS
+    },
+
+    commercialModel: {
+      supportLevel: "AI_ONLY",
+      edenRate: 0.10,
+      defaultVisitValue: 2000
+    },
+
+    channels: {
+      websiteChat: {
+        enabled: true
+      },
+
+      missedCallResponder: {
+        enabled: true,
+        mode: "voice_plus_sms",
+        stableForCommercialUse: true,
+        sendsTelegramAlert: true,
+        sendsBookingLinkSms: true,
+        allowsHumanFollowUp: true
+      },
+
+      conversationalVoiceAI: {
+        enabled: false,
+        status: "development",
+        stableForCommercialUse: false
+      }
+    }
+  }
+}
+
 const SYSTEM_PROMPT = `
 You are Eden Clinic Network's AI Clinic Growth Auditor.
 
