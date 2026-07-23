@@ -2355,23 +2355,70 @@ ${transcript.slice(0, 3000)}
   }
 });
 
-app.get("/test-booking-telegram/:clinicId", async (req, res) => {
-  try {
-    const clinic = getClinicConfig(req.params.clinicId);
-    if (!clinic) return res.status(404).send("Unknown clinic");
-    if (!clinic.telegram?.bookingChatId) return res.status(400).send("Booking chat ID missing");
+app.get(
+  "/test-booking-telegram/:clinicId",
+  async (req, res) => {
+    try {
+      const clinic =
+        getClinicConfig(req.params.clinicId);
 
-    await sendTelegramTo(
-      clinic.telegram.bookingChatId,
-      `✅ ${clinic.clinicName} booking Telegram routing works.`
-    );
+      if (!clinic) {
+        return res
+          .status(404)
+          .send("Unknown clinic");
+      }
 
-    res.send(`${clinic.clinicName} booking Telegram test sent`);
-  } catch (error) {
-    console.error("Booking Telegram test error:", error);
-    res.status(500).send("Booking Telegram test failed");
+      const bookingChatId =
+        clinic.telegram?.bookingChatId;
+
+      if (!bookingChatId) {
+        return res
+          .status(400)
+          .send(
+            "Booking chat ID missing from Render environment"
+          );
+      }
+
+      const result =
+        await sendTelegramTo(
+          bookingChatId,
+          `PearlSmile Telegram test
+
+Clinic: ${clinic.clinicName}
+Assistant: ${clinic.assistantName}
+Time: ${new Date().toISOString()}`
+        );
+
+      if (!result?.ok) {
+        return res.status(500).json({
+          success: false,
+          clinic: clinic.clinicName,
+          chatIdDetected: Boolean(bookingChatId),
+          telegramResult: result
+        });
+      }
+
+      return res.json({
+        success: true,
+        message:
+          `${clinic.clinicName} booking Telegram test delivered`,
+        telegramMessageId:
+          result.data?.result?.message_id
+      });
+
+    } catch (error) {
+      console.error(
+        "Booking Telegram test error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
   }
-});
+);
 
 app.get("/test-telegram", async (req, res) => {
   try {
