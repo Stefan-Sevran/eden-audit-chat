@@ -39,7 +39,7 @@ const CLINICS = {
     country: "Philippines",
     timezone: "Asia/Manila",
     currency: "PHP",
-    currencySymbol: "₱",
+    currencySymbol: "â‚±",
 
     status: "demo",
 
@@ -53,12 +53,12 @@ const CLINICS = {
     languages: ["English", "Cebuano", "Tagalog"],
 
     openingHours: {
-      monday: "9:00 AM–6:00 PM",
-      tuesday: "9:00 AM–6:00 PM",
-      wednesday: "9:00 AM–6:00 PM",
-      thursday: "9:00 AM–6:00 PM",
-      friday: "9:00 AM–6:00 PM",
-      saturday: "9:00 AM–5:00 PM",
+      monday: "9:00 AMâ€“6:00 PM",
+      tuesday: "9:00 AMâ€“6:00 PM",
+      wednesday: "9:00 AMâ€“6:00 PM",
+      thursday: "9:00 AMâ€“6:00 PM",
+      friday: "9:00 AMâ€“6:00 PM",
+      saturday: "9:00 AMâ€“5:00 PM",
       sunday: "Closed"
     },
 
@@ -84,7 +84,7 @@ const CLINICS = {
         id: "cleaning",
         name: "Teeth Cleaning",
         aliases: ["cleaning", "oral prophylaxis", "prophylaxis"],
-        priceText: "₱1,500",
+        priceText: "â‚±1,500",
         estimatedVisitValue: 1500,
         durationMinutes: 45,
         consultationRequired: false,
@@ -95,7 +95,7 @@ const CLINICS = {
         id: "whitening",
         name: "Teeth Whitening",
         aliases: ["whitening", "teeth whitening", "bleaching"],
-        priceText: "From ₱7,500",
+        priceText: "From â‚±7,500",
         estimatedVisitValue: 7500,
         durationMinutes: 90,
         consultationRequired: true,
@@ -109,7 +109,7 @@ const CLINICS = {
         id: "braces_consultation",
         name: "Braces Consultation",
         aliases: ["braces", "orthodontics", "orthodontic consultation"],
-        priceText: "₱500 consultation",
+        priceText: "â‚±500 consultation",
         estimatedVisitValue: 500,
         durationMinutes: 30,
         consultationRequired: true,
@@ -124,7 +124,7 @@ const CLINICS = {
         id: "implant_consultation",
         name: "Dental Implant Consultation",
         aliases: ["implant", "dental implant", "missing tooth"],
-        priceText: "₱500 consultation",
+        priceText: "â‚±500 consultation",
         estimatedVisitValue: 500,
         durationMinutes: 30,
         consultationRequired: true,
@@ -139,7 +139,7 @@ const CLINICS = {
         id: "veneers_consultation",
         name: "Veneers Consultation",
         aliases: ["veneers", "porcelain veneers"],
-        priceText: "₱500 consultation",
+        priceText: "â‚±500 consultation",
         estimatedVisitValue: 500,
         durationMinutes: 30,
         consultationRequired: true,
@@ -154,7 +154,7 @@ const CLINICS = {
         id: "emergency_dental",
         name: "Emergency Dental Assessment",
         aliases: ["tooth pain", "emergency", "swelling", "broken tooth", "toothache"],
-        priceText: "Assessment from ₱800; treatment depends on findings",
+        priceText: "Assessment from â‚±800; treatment depends on findings",
         estimatedVisitValue: 2000,
         durationMinutes: 30,
         consultationRequired: true,
@@ -166,7 +166,7 @@ const CLINICS = {
         id: "kids_dentistry",
         name: "Kids Dentistry Visit",
         aliases: ["kids", "child", "children", "pediatric dentistry"],
-        priceText: "From ₱1,200",
+        priceText: "From â‚±1,200",
         estimatedVisitValue: 1200,
         durationMinutes: 45,
         consultationRequired: false,
@@ -291,7 +291,7 @@ Reasoning format:
 4. Keep it under 3 short sentences.
 
 Example:
-"You mentioned 8–10 missed calls and 15–20 late replies weekly. Even recovering 3–5 bookings could mean roughly ₱13,500–₱22,500 per week at your ₱4,500 average booking value. That is why follow-up is the first fix I'd prioritize."
+"You mentioned 8â€“10 missed calls and 15â€“20 late replies weekly. Even recovering 3â€“5 bookings could mean roughly â‚±13,500â€“â‚±22,500 per week at your â‚±4,500 average booking value. That is why follow-up is the first fix I'd prioritize."
 
 Avoid vague phrases such as:
 "worth thousands"
@@ -302,10 +302,10 @@ Use numerical ranges whenever possible.
 Before asking about Eden's service, help the clinic owner reach their own conclusion that revenue is being lost.
 
 Website scan honesty:
-Never say “I checked the website” or describe website features unless the automated website scan confirms them.
-If website scan data is not available, say: “I have the website link, but the automated website scan is still limited.”
+Never say â€œI checked the websiteâ€ or describe website features unless the automated website scan confirms them.
+If website scan data is not available, say: â€œI have the website link, but the automated website scan is still limited.â€
 Do not guess whether booking, live chat, phone number, reviews, or trust signals exist.
-Use “I did not detect” only when scan data explicitly says it was not detected.
+Use â€œI did not detectâ€ only when scan data explicitly says it was not detected.
 
 Eden pricing and setup rules:
 
@@ -368,7 +368,7 @@ Help the patient get a useful answer and move smoothly toward a booking request.
 
 STYLE
 - Warm, natural, reassuring, and concise.
-- Usually 1–3 short paragraphs.
+- Usually 1â€“3 short paragraphs.
 - Ask only one next-step question at a time.
 - Use the clinic assistant's name naturally, but do not repeat it in every message.
 - Match English, Tagalog, or Cebuano lightly when the patient uses it.
@@ -401,7 +401,7 @@ function formatClinicServices(clinic) {
   return (clinic.services || [])
     .map(service => {
       const potential = service.potentialServiceName
-        ? ` Potential next service: ${service.potentialServiceName} (${clinic.currencySymbol}${service.potentialServiceValueMin?.toLocaleString()}–${clinic.currencySymbol}${service.potentialServiceValueMax?.toLocaleString()}).`
+        ? ` Potential next service: ${service.potentialServiceName} (${clinic.currencySymbol}${service.potentialServiceValueMin?.toLocaleString()}â€“${clinic.currencySymbol}${service.potentialServiceValueMax?.toLocaleString()}).`
         : "";
 
       return `- ${service.name}: ${service.priceText}; approximately ${service.durationMinutes} minutes.${potential}`;
@@ -456,7 +456,7 @@ Do not invent clinic information.
 }
 
 const RECEPTIONIST_SYSTEM_PROMPT = `
-You are Eden Clinic Network's Revenue Rescue AI Receptionist™ Advisor.
+You are Eden Clinic Network's Revenue Rescue AI Receptionistâ„¢ Advisor.
 Your mission is to identify motivated clinics that qualify for a free AI Receptionist.
 You are NOT trying to sell.
 You are selecting clinics that are a good fit.
@@ -465,7 +465,7 @@ Warm.
 Professional.
 Commercially intelligent.
 Use short chat replies.
-Usually 1–3 short lines.
+Usually 1â€“3 short lines.
 Only ask ONE question at a time.
 Never sound like a survey.
 Never sound like a chatbot.
@@ -473,10 +473,10 @@ Always react naturally to what the clinic owner just wrote.
 
 YOUR GOAL
 Help the clinic owner understand:
-• why patients disappear
-• how an AI Receptionist recovers bookings
-• why faster replies matter
-• whether the clinic qualifies
+â€¢ why patients disappear
+â€¢ how an AI Receptionist recovers bookings
+â€¢ why faster replies matter
+â€¢ whether the clinic qualifies
 
 If the clinic is a good fit, collect contact information.
 If not, politely explain why.
@@ -486,7 +486,7 @@ IMPORTANT
 This AI Receptionist is a REAL service.
 It is not a demo.
 Selected clinics receive a professionally built AI Receptionist page.
-The normal development value starts around ₱25,000.
+The normal development value starts around â‚±25,000.
 Selected clinics currently receive it free.
 
 Never pressure anyone.
@@ -497,10 +497,10 @@ FIRST MESSAGE
 The first reply should naturally explain value.
 Example style:
 
-"Hi 👋
+"Hi ðŸ‘‹
 
 Many clinics lose bookings simply because patients don't receive a fast reply.
-Even recovering one extra booking per day can sometimes mean ₱60,000–₱150,000 additional monthly revenue.
+Even recovering one extra booking per day can sometimes mean â‚±60,000â€“â‚±150,000 additional monthly revenue.
 I'd be happy to see whether your clinic qualifies for a free AI Receptionist.
 What clinic do you run?"
 
@@ -573,7 +573,7 @@ Never oversell it.
 PRICING
 If asked:
 Explain:
-Normal development starts around ₱25,000.
+Normal development starts around â‚±25,000.
 Selected clinics currently receive it free.
 Future Eden services are usually performance-based.
 Eden succeeds when the clinic succeeds.
@@ -603,6 +603,7 @@ function getClinicName(clinicId) {
 }
 
 
+
 function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
   if (!patientBookings[sessionId]) {
     patientBookings[sessionId] = {
@@ -610,7 +611,9 @@ function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
       clinicId,
       patientName: "",
       phone: "",
+      whatsapp: "",
       email: "",
+      preferredContactMethod: "",
       serviceId: "",
       serviceName: "",
       preferredDate: "",
@@ -631,9 +634,110 @@ function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
   return patientBookings[sessionId];
 }
 
+
+function getClinicLocalDateParts(timezone = "UTC", date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts.map(part => [part.type, part.value])
+  );
+
+  return {
+    year: values.year,
+    month: values.month,
+    day: values.day,
+    iso: `${values.year}-${values.month}-${values.day}`
+  };
+}
+
+function addDaysToIsoDate(isoDate, days) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+function resolveBookingDate(rawDate, timezone = "UTC") {
+  const raw = String(rawDate || "").trim();
+  if (!raw) return "";
+
+  const lower = raw.toLowerCase().replace(/^next\s+/, "");
+  const today = getClinicLocalDateParts(timezone).iso;
+
+  if (lower === "today") return today;
+  if (lower === "tomorrow") return addDaysToIsoDate(today, 1);
+
+  const weekdays = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday"
+  ];
+
+  const weekdayIndex = weekdays.indexOf(lower);
+
+  if (weekdayIndex !== -1) {
+    const [year, month, day] = today.split("-").map(Number);
+    const todayUtc = new Date(Date.UTC(year, month - 1, day));
+    const currentWeekday = todayUtc.getUTCDay();
+
+    let daysAhead = (weekdayIndex - currentWeekday + 7) % 7;
+    if (daysAhead === 0) daysAhead = 7;
+
+    return addDaysToIsoDate(today, daysAhead);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw >= today ? raw : "";
+  }
+
+  const numeric = raw.match(
+    /^(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?$/
+  );
+
+  if (numeric) {
+    const day = Number(numeric[1]);
+    const month = Number(numeric[2]);
+    let year = numeric[3]
+      ? Number(numeric[3])
+      : Number(today.slice(0, 4));
+
+    if (year < 100) year += 2000;
+
+    const testDate = new Date(Date.UTC(year, month - 1, day));
+    const valid =
+      testDate.getUTCFullYear() === year &&
+      testDate.getUTCMonth() === month - 1 &&
+      testDate.getUTCDate() === day;
+
+    if (!valid) return "";
+
+    const iso =
+      `${year}-` +
+      `${String(month).padStart(2, "0")}-` +
+      `${String(day).padStart(2, "0")}`;
+
+    return iso >= today ? iso : "";
+  }
+
+  return "";
+}
+
 function createBookingLeadId(clinic, sessionId) {
-  const date = new Date().toISOString().slice(2, 10).replace(/-/g, "");
-  const suffix = String(sessionId).replace(/[^a-zA-Z0-9]/g, "").slice(-5).toUpperCase();
+  const localDate = getClinicLocalDateParts(clinic.timezone).iso;
+  const date = localDate.slice(2).replace(/-/g, "");
+  const suffix = String(sessionId)
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(-5)
+    .toUpperCase();
+
   return `${clinic.clinicCode}-${date}-${suffix || "LEAD"}`;
 }
 
@@ -646,25 +750,56 @@ function findClinicService(clinic, text) {
   ) || null;
 }
 
+
 function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   const clinic = getClinicConfig(clinicId);
   if (!clinic) return;
 
   const booking = ensurePatientBooking(sessionId, clinicId);
   const source = String(text || "");
+  const lower = source.toLowerCase();
 
   if (!booking.leadId) {
     booking.leadId = createBookingLeadId(clinic, sessionId);
   }
 
   const email = source.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
-  if (email) booking.email = email[0];
+  if (email) {
+    booking.email = email[0].replace(/[),.;]+$/g, "");
+    if (!booking.preferredContactMethod) {
+      booking.preferredContactMethod = "Email";
+    }
+  }
 
   const phone = source.match(/(\+?\d[\d\s().-]{7,}\d)/);
-  if (phone) booking.phone = phone[0].trim();
+  if (phone) {
+    const number = phone[0].trim();
+    const mentionsWhatsApp = /\b(whatsapp|what'?s\s*app|wa)\b/i.test(source);
+    const mentionsPhone = /\b(phone|mobile|call|telephone|contact number)\b/i.test(source);
 
-  const nameMatch =
-    source.match(/(?:my name is|i am|i'm|this is)\s+([a-zA-ZÀ-ÿ' -]{2,40})/i);
+    if (mentionsWhatsApp) {
+      booking.whatsapp = number;
+      booking.phone = booking.phone || number;
+      booking.preferredContactMethod = "WhatsApp";
+    } else {
+      booking.phone = number;
+      if (mentionsPhone || !booking.preferredContactMethod) {
+        booking.preferredContactMethod = "Phone";
+      }
+    }
+  }
+
+  if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?email\b/i.test(source)) {
+    booking.preferredContactMethod = "Email";
+  } else if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?whatsapp\b/i.test(source)) {
+    booking.preferredContactMethod = "WhatsApp";
+  } else if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?(?:phone|call)\b/i.test(source)) {
+    booking.preferredContactMethod = "Phone";
+  }
+
+  const nameMatch = source.match(
+    /(?:my name is|i am|i'm|this is)\s+([a-zA-ZÃ€-Ã¿' -]{2,40})/i
+  );
 
   if (nameMatch) {
     booking.patientName = nameMatch[1]
@@ -676,30 +811,58 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   if (service) {
     booking.serviceId = service.id;
     booking.serviceName = service.name;
-    booking.estimatedVisitValue = service.estimatedVisitValue || clinic.commercialModel.defaultVisitValue;
+    booking.estimatedVisitValue =
+      service.estimatedVisitValue ||
+      clinic.commercialModel.defaultVisitValue;
     booking.potentialServiceName = service.potentialServiceName || "";
     booking.potentialServiceValueMin = service.potentialServiceValueMin || 0;
     booking.potentialServiceValueMax = service.potentialServiceValueMax || 0;
     booking.urgency = service.urgent ? "URGENT" : booking.urgency;
   }
 
-  const timeMatch = source.match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i);
-  if (timeMatch) booking.preferredTime = timeMatch[0].toUpperCase();
+  const timeMatch = source.match(
+    /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i
+  );
+  if (timeMatch) {
+    booking.preferredTime = timeMatch[0].toUpperCase();
+  }
 
-  const dateMatch = source.match(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/i);
-  if (dateMatch) booking.preferredDate = dateMatch[0];
+  const dateMatch = source.match(
+    /\b(today|tomorrow|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/i
+  );
+
+  if (dateMatch) {
+    const resolvedDate = resolveBookingDate(
+      dateMatch[0],
+      clinic.timezone
+    );
+
+    if (resolvedDate) {
+      booking.preferredDate = resolvedDate;
+    }
+  }
 
   if (/book|appointment|schedule|reserve|slot/i.test(source)) {
     booking.bookingStatus = "BOOKING_REQUESTED";
   }
 
-  if (booking.patientName && (booking.phone || booking.email)) {
-    booking.bookingStatus = booking.bookingStatus === "NEW"
-      ? "CONTACT_CAPTURED"
-      : booking.bookingStatus;
+  const hasContact =
+    booking.phone ||
+    booking.whatsapp ||
+    booking.email;
+
+  if (booking.patientName && hasContact) {
+    booking.bookingStatus =
+      booking.bookingStatus === "NEW"
+        ? "CONTACT_CAPTURED"
+        : booking.bookingStatus;
   }
 
-  if (booking.serviceName && booking.preferredDate && booking.preferredTime) {
+  if (
+    booking.serviceName &&
+    booking.preferredDate &&
+    booking.preferredTime
+  ) {
     booking.bookingStatus = "AWAITING_CLINIC";
     booking.humanFollowUpNeeded = true;
   }
@@ -1180,7 +1343,7 @@ function calculateRecoveryEstimate(transcript) {
 
   const missedMatch = text.match(/(\d+)\s*(missed calls|missed call|calls)/i);
   const lateMatch = text.match(/(\d+)\s*(late replies|late reply|messages|inquiries|replies)/i);
-  const valueMatch = text.match(/₱?\s?(\d{3,6})\s*(per booking|per patient|average|avg)/i);
+  const valueMatch = text.match(/â‚±?\s?(\d{3,6})\s*(per booking|per patient|average|avg)/i);
   const conversionMatch = text.match(/(\d{1,3})\s*%/i);
 
   let missedCallsPerWeek = missedMatch ? Number(missedMatch[1]) : 0;
@@ -1203,20 +1366,20 @@ if (!conversionRate) {
 
   if (missedCallsPerWeek && conversionRate) {
     recoveredBookingsPerMonth = missedCallsPerWeek * conversionRate * 4;
-    explanation = `Based on ${missedCallsPerWeek} missed calls per week, ${Math.round(conversionRate * 100)}% stated conversion, and ₱${safePatientValue.toLocaleString()} average booking value.`;
+    explanation = `Based on ${missedCallsPerWeek} missed calls per week, ${Math.round(conversionRate * 100)}% stated conversion, and â‚±${safePatientValue.toLocaleString()} average booking value.`;
   } else {
     recoveredBookingsPerMonth =
       missedCallsPerWeek * 4.3 * (1 / 3) +
       lateRepliesPerWeek * 4.3 * (1 / 5);
 
-    explanation = `Based on a rough benchmark of recovering about 1 in 3 missed calls and 1 in 5 delayed replies, using ₱${safePatientValue.toLocaleString()} average booking value.`;
+    explanation = `Based on a rough benchmark of recovering about 1 in 3 missed calls and 1 in 5 delayed replies, using â‚±${safePatientValue.toLocaleString()} average booking value.`;
   }
 
   const estimate = Math.round((recoveredBookingsPerMonth * safePatientValue) / 5000) * 5000;
 
   return {
-    revenue: `₱${estimate.toLocaleString()}/month`,
-    expectedOutcome: `Estimated recoverable revenue is around ₱${estimate.toLocaleString()}/month. ${explanation}`
+    revenue: `â‚±${estimate.toLocaleString()}/month`,
+    expectedOutcome: `Estimated recoverable revenue is around â‚±${estimate.toLocaleString()}/month. ${explanation}`
   };
 }
 
@@ -1267,7 +1430,7 @@ Return ONLY valid JSON:
 {
   "clinicName": "SmileCare Dental Cebu",
   "score": 72,
-  "revenue": "₱45,000 - ₱180,000/month",
+  "revenue": "â‚±45,000 - â‚±180,000/month",
 
   "biggestLeak":
   "Most important revenue leak discovered from the conversation",
@@ -1410,7 +1573,7 @@ function safe(value, fallback = "") {
 function buildAuditHtml({ clinic, audit }) {
   const clinicName = safe(audit.clinicName, clinic || "Your Clinic");
   const score = safe(audit.score, "65");
-  const revenue = safe(audit.revenue, "₱45,000 - ₱180,000/month");
+  const revenue = safe(audit.revenue, "â‚±45,000 - â‚±180,000/month");
   const summary = safe(
     audit.summary,
     `${clinicName} appears to have recoverable revenue opportunities through missed calls, slow replies, and weak follow-up.`
@@ -1477,7 +1640,7 @@ margin-bottom:22px;
   font-weight:bold;
   margin-bottom:8px;
   ">
-  Eden Clinic Network • AI Growth Audit
+  Eden Clinic Network â€¢ AI Growth Audit
   </div>
 
   <h1 style="
@@ -1493,7 +1656,7 @@ margin-bottom:22px;
   color:#e5e7eb;
   margin:0;
   ">
-  Clinic Revenue Rescue Audit™
+  Clinic Revenue Rescue Auditâ„¢
   </p>
 
 </div>
@@ -1803,10 +1966,10 @@ const leadType = sessionLeadType[sessionId] || "audit";
 
 const leadHeader =
   leadType === "receptionist"
-    ? "🟢 NEW REVENUE RESCUE AI RECEPTIONIST™ LEAD"
+    ? "ðŸŸ¢ NEW REVENUE RESCUE AI RECEPTIONISTâ„¢ LEAD"
     : leadType === "booking"
-    ? "🟣 NEW AI BOOKING LEAD"
-    : "🔥 NEW CLINIC AUDIT LEAD";
+    ? "ðŸŸ£ NEW AI BOOKING LEAD"
+    : "ðŸ”¥ NEW CLINIC AUDIT LEAD";
   
   const tempMatch = summary.match(/Lead temperature:\s*([^\n]+)/i);
   const intentMatch = summary.match(/Buying intent score 1-10:\s*([^\n]+)/i);
@@ -1823,32 +1986,33 @@ intent = intent.match(/\d+/)?.[0] || intent;
   const followUp = followMatch ? followMatch[1].trim() : "Review lead and follow up.";
 
   return `
-${alertedSessions[sessionId] ? "🔁 UPDATED " + leadHeader : leadHeader}
+${alertedSessions[sessionId] ? "ðŸ” UPDATED " + leadHeader : leadHeader}
 
-🏥 ${p.clinicName || "Unknown clinic"}
-📍 ${p.city || "Unknown city"}
-🏷️ ${p.clinicType || "Unknown type"}
-🌡️ ${intent} of 10
+ðŸ¥ ${p.clinicName || "Unknown clinic"}
+ðŸ“ ${p.city || "Unknown city"}
+ðŸ·ï¸ ${p.clinicType || "Unknown type"}
+ðŸŒ¡ï¸ ${intent} of 10
 ${temperature}
 
-🌐 ${p.website || "No website captured"}
-📧 ${p.email || "No email captured"}
-📘 ${p.facebook || "No Facebook captured"}
-📱 ${p.whatsapp || "No WhatsApp captured"}
+ðŸŒ ${p.website || "No website captured"}
+ðŸ“§ ${p.email || "No email captured"}
+ðŸ“˜ ${p.facebook || "No Facebook captured"}
+ðŸ“± ${p.whatsapp || "No WhatsApp captured"}
 
-💰 Estimated opportunity:
+ðŸ’° Estimated opportunity:
 ${opportunity}
 
-⚠ Biggest leak:
+âš  Biggest leak:
 ${problem}
 
-➡ Recommended next step:
+âž¡ Recommended next step:
 ${followUp}
 
 Session:
 ${sessionId}
 `;
 }
+
 
 function createBookingTelegramCard(sessionId) {
   const clinicId = sessionClinicId[sessionId] || "pearlsmile";
@@ -1868,35 +2032,54 @@ function createBookingTelegramCard(sessionId) {
     (clinic.commercialModel.edenRate || 0)
   );
 
+  const contact =
+    booking.whatsapp ||
+    booking.phone ||
+    booking.email ||
+    "Not captured yet";
+
+  const contactMethod =
+    booking.preferredContactMethod ||
+    (booking.whatsapp
+      ? "WhatsApp"
+      : booking.phone
+        ? "Phone"
+        : booking.email
+          ? "Email"
+          : "Not captured yet");
+
   const potentialText = booking.potentialServiceName
-    ? `\n🎯 Potential service: ${booking.potentialServiceName}\nPotential range: ${clinic.currencySymbol}${booking.potentialServiceValueMin.toLocaleString()}–${clinic.currencySymbol}${booking.potentialServiceValueMax.toLocaleString()}`
+    ? `\nðŸŽ¯ Potential service: ${booking.potentialServiceName}\nPotential range: ${clinic.currencySymbol}${booking.potentialServiceValueMin.toLocaleString()}â€“${clinic.currencySymbol}${booking.potentialServiceValueMax.toLocaleString()}`
     : "";
 
   return `
-${isUpdate ? "🔁 UPDATED PATIENT BOOKING" : "🦷 NEW PATIENT BOOKING"} — ${clinic.clinicName.toUpperCase()}
+${isUpdate ? "ðŸ” UPDATED PATIENT BOOKING" : "ðŸ¦· NEW PATIENT BOOKING"} â€” ${clinic.clinicName.toUpperCase()}
 
-🆔 Lead: ${booking.leadId}
-👤 Patient: ${booking.patientName || "Not captured yet"}
-📱 Contact: ${booking.phone || booking.email || "Not captured yet"}
+ðŸ†” Lead: ${booking.leadId}
+ðŸ‘¤ Patient: ${booking.patientName || "Not captured yet"}
+ðŸ“± Contact: ${contact}
+ðŸ’¬ Contact method: ${contactMethod}
+ðŸ“§ Email: ${booking.email || "Not captured yet"}
 
-🦷 Service: ${booking.serviceName || "Not identified yet"}
-📅 Requested date: ${booking.preferredDate || "Not captured yet"}
-🕒 Requested time: ${booking.preferredTime || "Not captured yet"}
-📌 Status: ${booking.bookingStatus}
-⚡ Urgency: ${booking.urgency}
+ðŸ¦· Service: ${booking.serviceName || "Not identified yet"}
+ðŸ“… Requested date: ${booking.preferredDate || "Not captured yet"}
+ðŸ•’ Requested time: ${booking.preferredTime || "Not captured yet"}
+ðŸ“Œ Status: ${booking.bookingStatus}
+âš¡ Urgency: ${booking.urgency}
 
-💰 Observable visit value: ${clinic.currencySymbol}${(booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue).toLocaleString()}
-📊 Indicative Eden fee (${Math.round((clinic.commercialModel.edenRate || 0) * 100)}%): ${clinic.currencySymbol}${estimatedFee.toLocaleString()}${potentialText}
+ðŸ’° Observable visit value: ${clinic.currencySymbol}${(booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue).toLocaleString()}
+ðŸ“Š Indicative Eden fee (${Math.round((clinic.commercialModel.edenRate || 0) * 100)}%): ${clinic.currencySymbol}${estimatedFee.toLocaleString()}${potentialText}
 
-💬 Latest patient message:
+ðŸ’¬ Latest patient message:
 ${latestPatientMessage}
 
-🤝 Human follow-up: ${booking.humanFollowUpNeeded ? "Needed" : "Not yet required"}
-🔗 Channel: ${clinic.googleSheets?.channelLabel || "Website AI booking chat"}
+ðŸ¤ Human follow-up: ${booking.humanFollowUpNeeded ? "Needed" : "Not yet required"}
+ðŸ”— Channel: ${clinic.googleSheets?.channelLabel || "Website AI booking chat"}
 
 Session: ${sessionId}
 `.trim();
 }
+
 
 async function extractPatientBookingWithAI(sessionId) {
   try {
@@ -1913,41 +2096,92 @@ async function extractPatientBookingWithAI(sessionId) {
       .map(item => JSON.stringify(item))
       .join(", ");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: `Extract patient booking information. Return JSON only. Do not guess.\nAllowed services: ${allowedServices}\nFields: patientName, phone, email, serviceId, serviceName, preferredDate, preferredTime, bookingStatus, urgency, summary.\nbookingStatus must be one of NEW, CONTACT_CAPTURED, BOOKING_REQUESTED, AWAITING_CLINIC. urgency must be NORMAL or URGENT.`
-          },
-          {
-            role: "user",
-            content: JSON.stringify(recentMessages)
-          }
-        ]
-      })
-    });
+    const clinicToday =
+      getClinicLocalDateParts(clinic.timezone).iso;
+
+    const response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content:
+                `Extract patient booking information. Return JSON only. Do not guess.\n` +
+                `Clinic timezone: ${clinic.timezone}\n` +
+                `Current clinic date: ${clinicToday}\n` +
+                `Allowed services: ${allowedServices}\n` +
+                `Fields: patientName, phone, whatsapp, email, preferredContactMethod, serviceId, serviceName, preferredDate, preferredTime, bookingStatus, urgency, summary.\n` +
+                `preferredContactMethod must be Phone, WhatsApp, Email, or empty.\n` +
+                `For preferredDate, preserve relative words such as today or tomorrow if used; otherwise use YYYY-MM-DD. Never return a date before ${clinicToday}.\n` +
+                `bookingStatus must be one of NEW, CONTACT_CAPTURED, BOOKING_REQUESTED, AWAITING_CLINIC. urgency must be NORMAL or URGENT.`
+            },
+            {
+              role: "user",
+              content: JSON.stringify(recentMessages)
+            }
+          ]
+        })
+      }
+    );
 
     if (!response.ok) return;
+
     const data = await response.json();
     const raw = data.choices?.[0]?.message?.content || "{}";
     const extracted = JSON.parse(raw);
 
-    for (const key of ["patientName", "phone", "email", "preferredDate", "preferredTime", "summary"]) {
-      if (typeof extracted[key] === "string" && extracted[key].trim()) {
+    for (const key of [
+      "patientName",
+      "phone",
+      "whatsapp",
+      "email",
+      "preferredTime",
+      "summary"
+    ]) {
+      if (
+        typeof extracted[key] === "string" &&
+        extracted[key].trim()
+      ) {
         booking[key] = extracted[key].trim();
       }
     }
 
-    if (["NEW", "CONTACT_CAPTURED", "BOOKING_REQUESTED", "AWAITING_CLINIC"].includes(extracted.bookingStatus)) {
+    if (
+      ["Phone", "WhatsApp", "Email"].includes(
+        extracted.preferredContactMethod
+      )
+    ) {
+      booking.preferredContactMethod =
+        extracted.preferredContactMethod;
+    }
+
+    if (
+      typeof extracted.preferredDate === "string" &&
+      extracted.preferredDate.trim()
+    ) {
+      const resolvedDate = resolveBookingDate(
+        extracted.preferredDate.trim(),
+        clinic.timezone
+      );
+
+      if (resolvedDate) {
+        booking.preferredDate = resolvedDate;
+      }
+    }
+
+    if (
+      ["NEW", "CONTACT_CAPTURED", "BOOKING_REQUESTED", "AWAITING_CLINIC"]
+        .includes(extracted.bookingStatus)
+    ) {
       booking.bookingStatus = extracted.bookingStatus;
     }
 
@@ -1957,25 +2191,76 @@ async function extractPatientBookingWithAI(sessionId) {
 
     const service = (clinic.services || []).find(item =>
       item.id === extracted.serviceId ||
-      item.name.toLowerCase() === String(extracted.serviceName || "").toLowerCase()
+      item.name.toLowerCase() ===
+        String(extracted.serviceName || "").toLowerCase()
     );
 
     if (service) {
       booking.serviceId = service.id;
       booking.serviceName = service.name;
-      booking.estimatedVisitValue = service.estimatedVisitValue || clinic.commercialModel.defaultVisitValue;
-      booking.potentialServiceName = service.potentialServiceName || "";
-      booking.potentialServiceValueMin = service.potentialServiceValueMin || 0;
-      booking.potentialServiceValueMax = service.potentialServiceValueMax || 0;
-      if (service.urgent) booking.urgency = "URGENT";
+      booking.estimatedVisitValue =
+        service.estimatedVisitValue ||
+        clinic.commercialModel.defaultVisitValue;
+      booking.potentialServiceName =
+        service.potentialServiceName || "";
+      booking.potentialServiceValueMin =
+        service.potentialServiceValueMin || 0;
+      booking.potentialServiceValueMax =
+        service.potentialServiceValueMax || 0;
+
+      if (service.urgent) {
+        booking.urgency = "URGENT";
+      }
     }
 
-    booking.humanFollowUpNeeded = booking.bookingStatus === "AWAITING_CLINIC";
+    if (booking.whatsapp && !booking.phone) {
+      booking.phone = booking.whatsapp;
+    }
+
+    if (!booking.preferredContactMethod) {
+      booking.preferredContactMethod =
+        booking.whatsapp
+          ? "WhatsApp"
+          : booking.phone
+            ? "Phone"
+            : booking.email
+              ? "Email"
+              : "";
+    }
+
+    const hasContact =
+      booking.phone ||
+      booking.whatsapp ||
+      booking.email;
+
+    if (
+      booking.patientName &&
+      hasContact &&
+      booking.bookingStatus === "NEW"
+    ) {
+      booking.bookingStatus = "CONTACT_CAPTURED";
+    }
+
+    if (
+      booking.serviceName &&
+      booking.preferredDate &&
+      booking.preferredTime
+    ) {
+      booking.bookingStatus = "AWAITING_CLINIC";
+    }
+
+    booking.humanFollowUpNeeded =
+      booking.bookingStatus === "AWAITING_CLINIC";
+
     booking.updatedAt = new Date().toISOString();
   } catch (error) {
-    console.error("Patient booking extraction error:", error.message);
+    console.error(
+      "Patient booking extraction error:",
+      error.message
+    );
   }
 }
+
 
 async function saveBookingToGoogleSheets(sessionId) {
   if (!GOOGLE_SCRIPT_URL) return;
@@ -1984,6 +2269,22 @@ async function saveBookingToGoogleSheets(sessionId) {
   const clinic = getClinicConfig(clinicId);
   const booking = ensurePatientBooking(sessionId, clinicId);
   if (!clinic) return;
+
+  const contact =
+    booking.whatsapp ||
+    booking.phone ||
+    booking.email ||
+    "";
+
+  const contactMethod =
+    booking.preferredContactMethod ||
+    (booking.whatsapp
+      ? "WhatsApp"
+      : booking.phone
+        ? "Phone"
+        : booking.email
+          ? "Email"
+          : "");
 
   try {
     await fetch(GOOGLE_SCRIPT_URL, {
@@ -1998,10 +2299,14 @@ async function saveBookingToGoogleSheets(sessionId) {
         sessionId,
         clinicId,
         clinic: clinic.clinicName,
-        channel: clinic.googleSheets?.channelLabel || "Website AI booking chat",
+        channel:
+          clinic.googleSheets?.channelLabel ||
+          "Website AI booking chat",
         patientName: booking.patientName,
-        contact: booking.phone || booking.email,
+        contact,
+        contactMethod,
         phone: booking.phone,
+        whatsapp: booking.whatsapp,
         email: booking.email,
         service: booking.serviceName,
         potentialService: booking.potentialServiceName,
@@ -2009,17 +2314,33 @@ async function saveBookingToGoogleSheets(sessionId) {
         requestedTime: booking.preferredTime,
         status: booking.bookingStatus,
         urgency: booking.urgency,
-        estimatedVisitValue: booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue,
+        estimatedVisitValue:
+          booking.estimatedVisitValue ||
+          clinic.commercialModel.defaultVisitValue,
         edenRate: clinic.commercialModel.edenRate,
-        estimatedEdenFee: Math.round((booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue) * clinic.commercialModel.edenRate),
-        humanTeamUsed: booking.humanFollowUpNeeded ? "Yes" : "No",
+        estimatedEdenFee: Math.round(
+          (
+            booking.estimatedVisitValue ||
+            clinic.commercialModel.defaultVisitValue
+          ) * clinic.commercialModel.edenRate
+        ),
+        humanTeamUsed:
+          booking.humanFollowUpNeeded
+            ? "Yes"
+            : "No",
         telegramSent: "Yes",
         summary: booking.summary || "",
-        transcript: formatTranscript(sessions[sessionId] || [])
+        transcript:
+          formatTranscript(
+            sessions[sessionId] || []
+          )
       })
     });
   } catch (error) {
-    console.error("Booking Google Sheets save error:", error.message);
+    console.error(
+      "Booking Google Sheets save error:",
+      error.message
+    );
   }
 }
 
@@ -2041,7 +2362,9 @@ async function maybeSendBookingAlert(sessionId, latestUserText) {
   const importantSnapshot = [
     booking.patientName,
     booking.phone,
+    booking.whatsapp,
     booking.email,
+    booking.preferredContactMethod,
     booking.serviceId,
     booking.preferredDate,
     booking.preferredTime,
@@ -2285,7 +2608,7 @@ if (
       data.output?.[1]?.content?.[0]?.text;
 
     if (!reply || reply.trim() === "") {
-      reply = "Got you 😊 what would you like help with?";
+      reply = "Got you ðŸ˜Š what would you like help with?";
     }
 
     sessions[sessionId].push({
@@ -2300,13 +2623,13 @@ if (
     return reply.trim();
   } catch (error) {
     console.error("OpenAI error:", error);
-    return "One sec 😊 let me check that for you.";
+    return "One sec ðŸ˜Š let me check that for you.";
   }
 }
 
 async function sendMessage(senderId, text) {
   if (!text || text.trim() === "") {
-    text = "Hi 😊 how can I help you today?";
+    text = "Hi ðŸ˜Š how can I help you today?";
   }
 
   const response = await fetch(
@@ -2335,14 +2658,14 @@ app.post("/eleven-postcall", async (req, res) => {
       JSON.stringify(data, null, 2);
 
     const message = `
-🦷 AI Call Completed
+ðŸ¦· AI Call Completed
 
 Clinic: Glow Dental Cebu
 Status: Needs clinic confirmation
 
-📞 Caller: ${data.caller_id || data.phone_number || "Unknown"}
+ðŸ“ž Caller: ${data.caller_id || data.phone_number || "Unknown"}
 
-📝 Transcript:
+ðŸ“ Transcript:
 ${transcript.slice(0, 3000)}
 `;
 
@@ -2422,7 +2745,7 @@ Time: ${new Date().toISOString()}`
 
 app.get("/test-telegram", async (req, res) => {
   try {
-    await sendTelegram("✅ Eden Telegram test alert works.");
+    await sendTelegram("âœ… Eden Telegram test alert works.");
     res.send("Telegram test sent");
   } catch (err) {
     console.error("Telegram test error:", err);
@@ -2510,7 +2833,7 @@ app.post("/chat", async (req, res) => {
 sessionLeadType[sessionId] = "audit";
     
     if (!userText.trim()) {
-      return res.json({ reply: "Hi 😊 What is your clinic name and website?" });
+      return res.json({ reply: "Hi ðŸ˜Š What is your clinic name and website?" });
     }
 
     const reply = await getAIReply(userText, sessionId);
@@ -2521,7 +2844,7 @@ sessionLeadType[sessionId] = "audit";
 });
   } catch (error) {
     console.error("Chat error:", error);
-    res.status(500).json({ reply: "One sec 😊 let me check that for you." });
+    res.status(500).json({ reply: "One sec ðŸ˜Š let me check that for you." });
   }
 });
 
@@ -2560,8 +2883,8 @@ app.post("/booking-chat", async (req, res) => {
     if (!userText.trim()) {
       return res.json({
         reply:
-          `Hi 😊 Welcome to ${clinic.clinicName}. ` +
-          `I’m ${clinic.assistantName}. How can I help you today?`,
+          `Hi ðŸ˜Š Welcome to ${clinic.clinicName}. ` +
+          `Iâ€™m ${clinic.assistantName}. How can I help you today?`,
 
         sessionId,
         clinicId,
@@ -2596,7 +2919,7 @@ app.post("/booking-chat", async (req, res) => {
 
     res.status(500).json({
       reply:
-        "One sec 😊 let me check that for you."
+        "One sec ðŸ˜Š let me check that for you."
     });
   }
 });
@@ -2611,7 +2934,7 @@ sessionLeadType[sessionId] = "receptionist";
     if (!userText.trim()) {
       return res.json({
         reply:
-          "Hi 👋 Many clinics lose bookings simply because patients don’t receive a fast reply.\n\nI’d be happy to see whether your clinic qualifies for a free AI Receptionist.\n\nWhat clinic do you run?",
+          "Hi ðŸ‘‹ Many clinics lose bookings simply because patients donâ€™t receive a fast reply.\n\nIâ€™d be happy to see whether your clinic qualifies for a free AI Receptionist.\n\nWhat clinic do you run?",
         sessionId
       });
     }
@@ -2630,7 +2953,7 @@ sessionLeadType[sessionId] = "receptionist";
   } catch (error) {
     console.error("Revenue receptionist chat error:", error);
     res.status(500).json({
-      reply: "One sec 😊 let me check that for you."
+      reply: "One sec ðŸ˜Š let me check that for you."
     });
   }
 });
