@@ -2081,9 +2081,10 @@ ${isUpdate ? icons.updated + " UPDATED PATIENT BOOKING" : icons.booking + " NEW 
 
 ${icons.lead} Lead: ${booking.leadId}
 ${icons.patient} Patient: ${booking.patientName || "Not captured yet"}
-${icons.contact} Contact: ${contact}
-${icons.message} Contact method: ${contactMethod}
+${icons.contact} Phone: ${booking.phone || "Not captured yet"}
+${icons.message} WhatsApp: ${booking.whatsapp || "Not captured yet"}
 ${icons.email} Email: ${booking.email || "Not captured yet"}
+${icons.channel} Preferred contact: ${contactMethod}
 
 ${icons.booking} Service: ${booking.serviceName || "Not identified yet"}
 ${icons.date} Requested date: ${booking.preferredDate || "Not captured yet"}
