@@ -2102,6 +2102,7 @@ ${icons.channel} Channel: ${clinic.googleSheets?.channelLabel || "Website AI boo
 
 Session: ${sessionId}
 `.trim();
+}
 
 async function extractPatientBookingWithAI(sessionId) {
   try {
