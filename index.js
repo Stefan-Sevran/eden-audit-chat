@@ -798,8 +798,8 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   }
 
   const nameMatch = source.match(
-    /(?:my name is|i am|i'm|this is)\s+([a-zA-ZÃ€-Ã¿' -]{2,40})/i
-  );
+  /(?:my name is|i am|i'm|this is)\s+([\p{L}' -]{2,40})/iu
+);
 
   if (nameMatch) {
     booking.patientName = nameMatch[1]
