@@ -434,6 +434,13 @@ AVAILABLE DEMO REQUEST TIMES
 ${(clinic.availableSlots || []).join(", ")}
 The clinic must still confirm availability.
 
+APPOINTMENT-TIME RULES
+- Never silently change a time requested by the patient.
+- The patient's latest explicit time selection is the authoritative requested time.
+- If the requested time is not in AVAILABLE DEMO REQUEST TIMES, clearly say it is not among the currently shown times and offer the exact available alternatives.
+- Only replace the requested time after the patient explicitly selects or accepts another time.
+- Do not describe a booking as confirmed until the clinic confirms it.
+
 SERVICES AND PRICES
 ${formatClinicServices(clinic)}
 
@@ -624,8 +631,19 @@ function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
       potentialServiceValueMin: 0,
       potentialServiceValueMax: 0,
       humanFollowUpNeeded: false,
+      humanTeamUsed: false,
       urgency: "NORMAL",
       summary: "",
+      source: "AI_CHAT",
+      lifecycleStatus: "",
+      reminderStatus: "PENDING_CLINIC_CONFIRMATION",
+      reminderDueAt: "",
+      attendanceCheckDueAt: "",
+      attendanceStatus: "ATTENDANCE_UNVERIFIED",
+      treatmentDecisionCheckDueAt: "",
+      lastPatientReply: "",
+      reminderMessage: "",
+      attendanceMessage: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -728,6 +746,158 @@ function resolveBookingDate(rawDate, timezone = "UTC") {
   }
 
   return "";
+}
+
+function getTimeZoneOffsetMilliseconds(date, timezone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts.map(part => [part.type, part.value])
+  );
+
+  const representedAsUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second)
+  );
+
+  return representedAsUtc - date.getTime();
+}
+
+function parseBookingTime(rawTime) {
+  const raw = String(rawTime || "").trim();
+  if (!raw) return null;
+
+  const twelveHour = raw.match(
+    /^(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(AM|PM)$/i
+  );
+
+  if (twelveHour) {
+    let hour = Number(twelveHour[1]) % 12;
+    if (twelveHour[3].toUpperCase() === "PM") hour += 12;
+
+    return {
+      hour,
+      minute: Number(twelveHour[2] || 0)
+    };
+  }
+
+  const twentyFourHour = raw.match(
+    /^([01]?\d|2[0-3]):([0-5]\d)$/
+  );
+
+  if (twentyFourHour) {
+    return {
+      hour: Number(twentyFourHour[1]),
+      minute: Number(twentyFourHour[2])
+    };
+  }
+
+  return null;
+}
+
+function getAppointmentUtcDate(isoDate, rawTime, timezone) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(isoDate || ""))) {
+    return null;
+  }
+
+  const time = parseBookingTime(rawTime);
+  if (!time) return null;
+
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const approximateUtc = new Date(
+    Date.UTC(year, month - 1, day, time.hour, time.minute, 0)
+  );
+
+  const firstOffset = getTimeZoneOffsetMilliseconds(
+    approximateUtc,
+    timezone
+  );
+
+  let resolved = new Date(approximateUtc.getTime() - firstOffset);
+  const secondOffset = getTimeZoneOffsetMilliseconds(resolved, timezone);
+
+  if (secondOffset !== firstOffset) {
+    resolved = new Date(approximateUtc.getTime() - secondOffset);
+  }
+
+  return resolved;
+}
+
+function refreshBookingFollowUpPlan(booking, clinic) {
+  const appointment = getAppointmentUtcDate(
+    booking.preferredDate,
+    booking.preferredTime,
+    clinic.timezone
+  );
+
+  if (!appointment) {
+    booking.reminderDueAt = "";
+    booking.attendanceCheckDueAt = "";
+    booking.treatmentDecisionCheckDueAt = "";
+    booking.reminderMessage = "";
+    booking.attendanceMessage = "";
+    return;
+  }
+
+  const patient = booking.patientName || "there";
+  const service = booking.serviceName || "appointment";
+
+  booking.reminderDueAt = new Date(
+    appointment.getTime() - 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  booking.attendanceCheckDueAt = new Date(
+    appointment.getTime() + 3 * 60 * 60 * 1000
+  ).toISOString();
+
+  booking.treatmentDecisionCheckDueAt =
+    booking.potentialServiceName
+      ? new Date(
+          appointment.getTime() + 10 * 24 * 60 * 60 * 1000
+        ).toISOString()
+      : "";
+
+  booking.reminderMessage =
+    `Hi ${patient} \u{1F44B} Reminder: your ${service} request at ` +
+    `${clinic.clinicName} is for ${booking.preferredDate} at ` +
+    `${booking.preferredTime}. Reply 1 to confirm or 2 to request rescheduling.`;
+
+  booking.attendanceMessage =
+    `Hi ${patient} \u{1F44B} Did you attend your ${service} at ` +
+    `${clinic.clinicName}? Reply 1 for Yes or 2 for No.`;
+
+  if (
+    booking.bookingStatus === "CONFIRMED" ||
+    booking.lifecycleStatus === "CONSULTATION_BOOKED"
+  ) {
+    if (
+      booking.bookingStatus === "CONFIRMED" &&
+      booking.potentialServiceName &&
+      !booking.lifecycleStatus
+    ) {
+      booking.lifecycleStatus = "CONSULTATION_BOOKED";
+    }
+
+    booking.reminderStatus =
+      booking.reminderStatus === "SENT"
+        ? "SENT"
+        : "SCHEDULED";
+  } else {
+    booking.reminderStatus = "PENDING_CLINIC_CONFIRMATION";
+  }
 }
 
 function createBookingLeadId(clinic, sessionId) {
@@ -865,9 +1035,40 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   ) {
     booking.bookingStatus = "AWAITING_CLINIC";
     booking.humanFollowUpNeeded = true;
+
   }
 
+  refreshBookingFollowUpPlan(booking, clinic);
   booking.updatedAt = new Date().toISOString();
+}
+
+function findLatestExplicitPatientTime(sessionId) {
+  const userMessages = (sessions[sessionId] || [])
+    .filter(message => message.role === "user")
+    .slice()
+    .reverse();
+
+  for (const message of userMessages) {
+    const text = String(message.content || "");
+
+    const twelveHour = text.match(
+      /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i
+    );
+
+    if (twelveHour) {
+      return twelveHour[0].toUpperCase();
+    }
+
+    const twentyFourHour = text.match(
+      /\b([01]?\d|2[0-3]):([0-5]\d)\b/
+    );
+
+    if (twentyFourHour) {
+      return twentyFourHour[0];
+    }
+  }
+
+  return "";
 }
 
 function ensureProfile(sessionId) {
@@ -1311,7 +1512,7 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
   }
 
   try {
-    await fetch(GOOGLE_SCRIPT_URL, {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1331,6 +1532,12 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
   timestamp: new Date().toISOString()
       })
     });
+
+    if (!response.ok) {
+      throw new Error(
+        `Google Sheets webhook returned ${response.status}`
+      );
+    }
 
     console.log("Lead saved to Google Sheets.");
   } catch (error) {
@@ -2076,6 +2283,10 @@ function createBookingTelegramCard(sessionId) {
     ? `\n${icons.target} Potential service: ${booking.potentialServiceName}\nPotential range: ${currencySymbol}${booking.potentialServiceValueMin.toLocaleString()}-${currencySymbol}${booking.potentialServiceValueMax.toLocaleString()}`
     : "";
 
+  const edenFeeText = booking.potentialServiceName
+    ? `${icons.chart} Eden fee: Pending treatment and revenue confirmation`
+    : `${icons.chart} Indicative Eden fee (${Math.round((clinic.commercialModel.edenRate || 0) * 100)}%): ${currencySymbol}${estimatedFee.toLocaleString()}`;
+
   return `
 ${isUpdate ? icons.updated + " UPDATED PATIENT BOOKING" : icons.booking + " NEW PATIENT BOOKING"} - ${clinic.clinicName.toUpperCase()}
 
@@ -2090,10 +2301,12 @@ ${icons.booking} Service: ${booking.serviceName || "Not identified yet"}
 ${icons.date} Requested date: ${booking.preferredDate || "Not captured yet"}
 ${icons.time} Requested time: ${booking.preferredTime || "Not captured yet"}
 ${icons.status} Status: ${booking.bookingStatus}
+${icons.status} Lifecycle: ${booking.lifecycleStatus || "Not started"}
+${icons.human} Attendance: ${booking.attendanceStatus}
 ${icons.urgency} Urgency: ${booking.urgency}
 
 ${icons.money} Observable visit value: ${currencySymbol}${(booking.estimatedVisitValue || clinic.commercialModel.defaultVisitValue).toLocaleString()}
-${icons.chart} Indicative Eden fee (${Math.round((clinic.commercialModel.edenRate || 0) * 100)}%): ${currencySymbol}${estimatedFee.toLocaleString()}${potentialText}
+${edenFeeText}${potentialText}
 
 ${icons.message} Latest patient message:
 ${latestPatientMessage}
@@ -2146,6 +2359,7 @@ async function extractPatientBookingWithAI(sessionId) {
                 `Fields: patientName, phone, whatsapp, email, preferredContactMethod, serviceId, serviceName, preferredDate, preferredTime, bookingStatus, urgency, summary.\n` +
                 `preferredContactMethod must be Phone, WhatsApp, Email, or empty.\n` +
                 `For preferredDate, preserve relative words such as today or tomorrow if used; otherwise use YYYY-MM-DD. Never return a date before ${clinicToday}.\n` +
+                `For preferredTime, use the patient's latest explicit selection or acceptance. Never silently substitute a clinic slot and never replace it with an earlier time mentioned in the conversation.\n` +
                 `bookingStatus must be one of NEW, CONTACT_CAPTURED, BOOKING_REQUESTED, AWAITING_CLINIC. urgency must be NORMAL or URGENT.`
             },
             {
@@ -2186,6 +2400,13 @@ async function extractPatientBookingWithAI(sessionId) {
     ) {
       booking.preferredContactMethod =
         extracted.preferredContactMethod;
+    }
+
+    const latestExplicitPatientTime =
+      findLatestExplicitPatientTime(sessionId);
+
+    if (latestExplicitPatientTime) {
+      booking.preferredTime = latestExplicitPatientTime;
     }
 
     if (
@@ -2271,11 +2492,13 @@ async function extractPatientBookingWithAI(sessionId) {
       booking.preferredTime
     ) {
       booking.bookingStatus = "AWAITING_CLINIC";
+
     }
 
     booking.humanFollowUpNeeded =
       booking.bookingStatus === "AWAITING_CLINIC";
 
+    refreshBookingFollowUpPlan(booking, clinic);
     booking.updatedAt = new Date().toISOString();
   } catch (error) {
     console.error(
@@ -2311,11 +2534,12 @@ async function saveBookingToGoogleSheets(sessionId) {
           : "");
 
   try {
-    await fetch(GOOGLE_SCRIPT_URL, {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         recordType: "PATIENT_BOOKING",
+        source: booking.source || "AI_CHAT",
         timestamp: new Date().toISOString(),
         created: booking.createdAt,
         updated: booking.updatedAt,
@@ -2334,22 +2558,44 @@ async function saveBookingToGoogleSheets(sessionId) {
         email: booking.email,
         service: booking.serviceName,
         potentialService: booking.potentialServiceName,
+        potentialServiceValueMin:
+          booking.potentialServiceValueMin || 0,
+        potentialServiceValueMax:
+          booking.potentialServiceValueMax || 0,
         requestedDate: booking.preferredDate,
         requestedTime: booking.preferredTime,
         status: booking.bookingStatus,
+        lifecycleStatus: booking.lifecycleStatus,
+        reminderStatus: booking.reminderStatus,
+        reminderDueAt: booking.reminderDueAt,
+        attendanceCheckDueAt:
+          booking.attendanceCheckDueAt,
+        attendanceStatus: booking.attendanceStatus,
+        treatmentDecisionCheckDueAt:
+          booking.treatmentDecisionCheckDueAt,
+        lastPatientReply: booking.lastPatientReply,
+        reminderMessage: booking.reminderMessage,
+        attendanceMessage: booking.attendanceMessage,
         urgency: booking.urgency,
         estimatedVisitValue:
           booking.estimatedVisitValue ||
           clinic.commercialModel.defaultVisitValue,
         edenRate: clinic.commercialModel.edenRate,
-        estimatedEdenFee: Math.round(
-          (
-            booking.estimatedVisitValue ||
-            clinic.commercialModel.defaultVisitValue
-          ) * clinic.commercialModel.edenRate
-        ),
-        humanTeamUsed:
+        estimatedEdenFee:
+          booking.potentialServiceName
+            ? ""
+            : Math.round(
+                (
+                  booking.estimatedVisitValue ||
+                  clinic.commercialModel.defaultVisitValue
+                ) * clinic.commercialModel.edenRate
+              ),
+        humanFollowUpNeeded:
           booking.humanFollowUpNeeded
+            ? "Yes"
+            : "No",
+        humanTeamUsed:
+          booking.humanTeamUsed
             ? "Yes"
             : "No",
         telegramSent: "Yes",
@@ -2360,12 +2606,133 @@ async function saveBookingToGoogleSheets(sessionId) {
           )
       })
     });
+
+    if (!response.ok) {
+      throw new Error(
+        `Google Sheets webhook returned ${response.status}`
+      );
+    }
   } catch (error) {
     console.error(
       "Booking Google Sheets save error:",
       error.message
     );
   }
+}
+
+async function saveMissedCallToGoogleSheets({
+  clinic,
+  clinicId,
+  caller,
+  callSid,
+  callStatus,
+  callDuration,
+  transcript,
+  summary
+}) {
+  if (!GOOGLE_SCRIPT_URL || !clinic) return;
+
+  const stableCallId =
+    callSid ||
+    `${clinic.clinicCode}-CALL-${Date.now()}`;
+
+  const leadId = String(stableCallId).startsWith(
+    `${clinic.clinicCode}-`
+  )
+    ? String(stableCallId)
+    : `${clinic.clinicCode}-CALL-${String(stableCallId)
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(-10)
+        .toUpperCase()}`;
+
+  const response = await fetch(GOOGLE_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      recordType: "MISSED_CALL",
+      source: "MISSED_CALL",
+      timestamp: new Date().toISOString(),
+      updated: new Date().toISOString(),
+      leadId,
+      sessionId: callSid || stableCallId,
+      clinicId,
+      clinic: clinic.clinicName,
+      channel: "Missed call recovery",
+      phone: caller || "",
+      contact: caller || "",
+      contactMethod: "Phone",
+      status: callStatus || "MISSED_CALL",
+      humanFollowUpNeeded: "Yes",
+      humanTeamUsed: "No",
+      telegramSent: "Yes",
+      summary: summary || "Missed call requires clinic follow-up.",
+      transcript: transcript || "",
+      callSid: callSid || "",
+      callStatus: callStatus || "MISSED_CALL",
+      callDuration: callDuration || ""
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Google Sheets webhook returned ${response.status}`
+    );
+  }
+}
+
+function applyBookingFollowUpReply(booking, stage, rawReply) {
+  const reply = String(rawReply || "").trim();
+  booking.lastPatientReply = reply;
+
+  if (stage === "reminder") {
+    if (reply === "1") {
+      booking.bookingStatus = "CONFIRMED";
+      booking.reminderStatus = "CONFIRMED_BY_PATIENT";
+      return "CONFIRMED";
+    }
+
+    if (reply === "2") {
+      booking.bookingStatus = "RESCHEDULE_REQUESTED";
+      booking.reminderStatus = "RESCHEDULE_REQUESTED";
+      booking.humanFollowUpNeeded = true;
+      return "RESCHEDULE_REQUESTED";
+    }
+  }
+
+  if (stage === "attendance") {
+    if (reply === "1") {
+      booking.attendanceStatus = "ATTENDED";
+
+      if (booking.potentialServiceName) {
+        booking.lifecycleStatus = "CONSULTATION_ATTENDED";
+      }
+
+      return "ATTENDED";
+    }
+
+    if (reply === "2") {
+      booking.attendanceStatus = "DID_NOT_ATTEND";
+      booking.humanFollowUpNeeded = true;
+      return "DID_NOT_ATTEND";
+    }
+  }
+
+  if (stage === "treatment") {
+    const treatmentStatuses = {
+      "1": "TREATMENT_STARTED",
+      "2": "PLANNING_TO_START",
+      "3": "PATIENT_HAS_QUESTION",
+      "4": "NOT_PROCEEDING"
+    };
+
+    if (treatmentStatuses[reply]) {
+      booking.lifecycleStatus = treatmentStatuses[reply];
+      booking.humanFollowUpNeeded = ["2", "3"].includes(reply);
+      return treatmentStatuses[reply];
+    }
+  }
+
+  return "INVALID_REPLY";
 }
 
 async function maybeSendBookingAlert(sessionId, latestUserText) {
@@ -2393,6 +2760,9 @@ async function maybeSendBookingAlert(sessionId, latestUserText) {
     booking.preferredDate,
     booking.preferredTime,
     booking.bookingStatus,
+    booking.lifecycleStatus,
+    booking.reminderStatus,
+    booking.attendanceStatus,
     booking.urgency
   ].join("|");
 
@@ -2672,28 +3042,147 @@ async function sendMessage(senderId, text) {
   console.log("Send response:", data);
 }
 
+app.post("/booking-followup-response", async (req, res) => {
+  try {
+    const sessionId = String(req.body.sessionId || "").trim();
+    const stage = String(req.body.stage || "").trim().toLowerCase();
+    const reply = String(req.body.reply || "").trim();
+
+    if (!sessionId || !["reminder", "attendance", "treatment"].includes(stage)) {
+      return res.status(400).json({
+        success: false,
+        error: "sessionId and a valid stage are required"
+      });
+    }
+
+    const clinicId =
+      sessionClinicId[sessionId] ||
+      req.body.clinicId ||
+      "pearlsmile";
+
+    const clinic = getClinicConfig(clinicId);
+    const booking = patientBookings[sessionId];
+
+    if (!clinic || !booking) {
+      return res.status(404).json({
+        success: false,
+        error: "Booking session not found"
+      });
+    }
+
+    const result = applyBookingFollowUpReply(
+      booking,
+      stage,
+      reply
+    );
+
+    if (result === "INVALID_REPLY") {
+      return res.status(400).json({
+        success: false,
+        result,
+        replyMessage: "Please reply with one of the listed numbers."
+      });
+    }
+
+    booking.updatedAt = new Date().toISOString();
+    refreshBookingFollowUpPlan(booking, clinic);
+    await saveBookingToGoogleSheets(sessionId);
+
+    const telegramChatId = clinic.telegram?.bookingChatId;
+    if (telegramChatId) {
+      await sendTelegramTo(
+        telegramChatId,
+        createBookingTelegramCard(sessionId)
+      );
+    }
+
+    return res.json({
+      success: true,
+      result,
+      bookingStatus: booking.bookingStatus,
+      lifecycleStatus: booking.lifecycleStatus,
+      attendanceStatus: booking.attendanceStatus
+    });
+  } catch (error) {
+    console.error("Booking follow-up response error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Unable to process follow-up response"
+    });
+  }
+});
+
 app.post("/eleven-postcall", async (req, res) => {
   try {
     const data = req.body;
+
+    const clinicId =
+      data.clinicId ||
+      data.clinic_id ||
+      "pearlsmile";
+
+    const clinic =
+      getClinicConfig(clinicId) ||
+      getClinicConfig("pearlsmile");
 
     const transcript =
       data.transcript ||
       data.conversation_transcript ||
       JSON.stringify(data, null, 2);
 
+    const caller =
+      data.caller_id ||
+      data.phone_number ||
+      data.from ||
+      "Unknown";
+
+    const callSid =
+      data.call_sid ||
+      data.callSid ||
+      data.conversation_id ||
+      "";
+
+    const callStatus =
+      data.call_status ||
+      data.status ||
+      "MISSED_CALL";
+
+    const callDuration =
+      data.call_duration ||
+      data.duration ||
+      "";
+
     const message = `
-ðŸ¦· AI Call Completed
+\u{1F4DE} MISSED CALL / AI CALL UPDATE
 
-Clinic: Glow Dental Cebu
-Status: Needs clinic confirmation
+Clinic: ${clinic.clinicName}
+Source: MISSED_CALL
+Status: ${callStatus}
 
-ðŸ“ž Caller: ${data.caller_id || data.phone_number || "Unknown"}
+\u{1F4F1} Caller: ${caller}
 
-ðŸ“ Transcript:
+\u{1F4DD} Transcript:
 ${transcript.slice(0, 3000)}
 `;
 
-    await sendTelegram(message);
+    const telegramChatId = clinic.telegram?.bookingChatId;
+
+    if (telegramChatId) {
+      await sendTelegramTo(telegramChatId, message);
+    } else {
+      await sendTelegram(message);
+    }
+
+    await saveMissedCallToGoogleSheets({
+      clinic,
+      clinicId: clinic.clinicId,
+      caller,
+      callSid,
+      callStatus,
+      callDuration,
+      transcript,
+      summary: "Missed call or completed AI call requires clinic review."
+    });
 
     res.status(200).send("ok");
   } catch (err) {
