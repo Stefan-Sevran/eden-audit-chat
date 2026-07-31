@@ -2912,17 +2912,26 @@ async function saveBookingToGoogleSheets(sessionId) {
       })
     });
 
-    if (!response.ok) {
-      throw new Error(
-        `Google Sheets webhook returned ${response.status}`
-      );
-    }
+const result = await response.json().catch(() => null);
 
-    console.log(
-      "Booking saved to clinic sheet:",
-      clinic.clinicName,
-      booking.leadId
-    );
+if (!response.ok || !result?.success) {
+  throw new Error(
+    result?.error ||
+    `Google Sheets webhook returned ${response.status}`
+  );
+}
+
+console.log(
+  "Booking saved to clinic sheet:",
+  clinic.clinicName,
+  booking.leadId,
+  "→",
+  result.sheet,
+  result.action,
+  "row",
+  result.row
+);
+    
   } catch (error) {
     console.error(
       "Booking Google Sheets save error:",
