@@ -2795,6 +2795,142 @@ async function saveBookingToGoogleSheets(sessionId) {
   }
 }
 
+async function saveBookingToGoogleSheets(sessionId) {
+  const clinicId =
+    sessionClinicId[sessionId] || "pearlsmile";
+
+  const clinic = getClinicConfig(clinicId);
+
+  if (!clinic) return;
+
+  const intakeUrl =
+    clinic.googleSheets?.intakeUrl ||
+    GOOGLE_SCRIPT_URL;
+
+  if (!intakeUrl) {
+    console.log(
+      "Booking Google Sheets URL missing for:",
+      clinicId
+    );
+    return;
+  }
+
+  const booking = ensurePatientBooking(
+    sessionId,
+    clinicId
+  );
+
+  const contact =
+    booking.whatsapp ||
+    booking.phone ||
+    booking.email ||
+    "";
+
+  const contactMethod =
+    booking.preferredContactMethod ||
+    (booking.whatsapp
+      ? "WhatsApp"
+      : booking.phone
+      ? "Phone"
+      : booking.email
+      ? "Email"
+      : "");
+
+  try {
+    const response = await fetch(intakeUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        recordType: "PATIENT_BOOKING",
+        source: booking.source || "AI_CHAT",
+        timestamp: new Date().toISOString(),
+        created: booking.createdAt,
+        updated: booking.updatedAt,
+        leadId: booking.leadId,
+        sessionId,
+        clinicId,
+        clinic: clinic.clinicName,
+        channel:
+          clinic.googleSheets?.channelLabel ||
+          "Website AI booking chat",
+        patientName: booking.patientName,
+        contact,
+        contactMethod,
+        phone: booking.phone,
+        whatsapp: booking.whatsapp,
+        email: booking.email,
+        service: booking.serviceName,
+        potentialService:
+          booking.potentialServiceName,
+        potentialServiceValueMin:
+          booking.potentialServiceValueMin || 0,
+        potentialServiceValueMax:
+          booking.potentialServiceValueMax || 0,
+        requestedDate: booking.preferredDate,
+        requestedTime: booking.preferredTime,
+        status: booking.bookingStatus,
+        lifecycleStatus: booking.lifecycleStatus,
+        reminderStatus: booking.reminderStatus,
+        reminderDueAt: booking.reminderDueAt,
+        attendanceCheckDueAt:
+          booking.attendanceCheckDueAt,
+        attendanceStatus: booking.attendanceStatus,
+        treatmentDecisionCheckDueAt:
+          booking.treatmentDecisionCheckDueAt,
+        lastPatientReply: booking.lastPatientReply,
+        reminderMessage: booking.reminderMessage,
+        attendanceMessage: booking.attendanceMessage,
+        urgency: booking.urgency,
+        estimatedVisitValue:
+          booking.estimatedVisitValue ||
+          clinic.commercialModel.defaultVisitValue,
+        edenRate: clinic.commercialModel.edenRate,
+        estimatedEdenFee:
+          booking.potentialServiceName
+            ? ""
+            : Math.round(
+                (
+                  booking.estimatedVisitValue ||
+                  clinic.commercialModel.defaultVisitValue
+                ) * clinic.commercialModel.edenRate
+              ),
+        humanFollowUpNeeded:
+          booking.humanFollowUpNeeded
+            ? "Yes"
+            : "No",
+        humanTeamUsed:
+          booking.humanTeamUsed
+            ? "Yes"
+            : "No",
+        telegramSent: "Yes",
+        summary: booking.summary || "",
+        transcript: formatTranscript(
+          sessions[sessionId] || []
+        )
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Google Sheets webhook returned ${response.status}`
+      );
+    }
+
+    console.log(
+      "Booking saved to clinic sheet:",
+      clinic.clinicName,
+      booking.leadId
+    );
+  } catch (error) {
+    console.error(
+      "Booking Google Sheets save error:",
+      error.message
+    );
+  }
+}
+
 async function saveMissedCallToGoogleSheets({
   clinic,
   clinicId,
