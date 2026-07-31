@@ -599,6 +599,9 @@ Timezone: ${clinic.timezone}
 Currency: ${clinic.currency}
 Languages: ${(clinic.languages || []).join(", ")}
 
+RECEPTIONIST VOICE
+${clinic.receptionistStyle || "Warm, concise, professional and reassuring."}
+
 OPENING HOURS
 ${hours}
 
