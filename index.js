@@ -4021,13 +4021,26 @@ app.post("/booking-chat", async (req, res) => {
       });
     }
 
-    const clinicBookingPrompt = buildClinicBookingPrompt(clinic);
+    const needsHumanHandoff = patientNeedsHumanHelp(userText);
 
-    const reply = await getAIReply(
+const reply = needsHumanHandoff
+  ? "Absolutely — I’ve notified our Team members. Please wait a few moments; they will reply here shortly. 🙏"
+  : await getAIReply(
       userText,
       sessionId,
-      clinicBookingPrompt
+      buildClinicBookingPrompt(clinic)
     );
+
+if (needsHumanHandoff) {
+  try {
+    await maybeSendBookingAlert(sessionId, userText);
+  } catch (error) {
+    console.error(
+      "Human-handoff booking pipeline error:",
+      error.message
+    );
+  }
+}
 
     try {
       const savedConversation = await recordLiveMessage(
