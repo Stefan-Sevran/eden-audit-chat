@@ -4474,7 +4474,10 @@ app.get("/live-chat/:sessionId", async (req, res) => {
     res.json({
       mode: conversation.mode,
       messages: rows || [],
-      updatedAt: conversation.updated_at
+      updatedAt:
+  rows && rows.length
+    ? rows[rows.length - 1].created_at
+    : conversation.updated_at
     });
   } catch (error) {
     console.error("Visitor live-chat poll error:", error.message);
