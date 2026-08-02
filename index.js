@@ -12,6 +12,11 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
+const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY;
+const INBOX_ADMIN_USERNAME = process.env.INBOX_ADMIN_USERNAME;
+const INBOX_ADMIN_PASSWORD = process.env.INBOX_ADMIN_PASSWORD;
 
 const sessions = {};
 const alertedSessions = {};
@@ -25,6 +30,206 @@ const sessionLeadType = {};
 const sessionClinicId = {};
 const bookingAlertSnapshots = {};
 const patientBookings = {};
+
+/*
+  LIVE HUMAN INBOX
+
+  This uses Supabase only from the server. Carrd never receives a
+  Supabase key. The visitor token is a per-conversation read key that
+  lets the widget receive human replies without exposing other chats.
+*/
+function liveInboxConfigured() {
+  return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+}
+
+async function supabaseRequest(path, options = {}) {
+  if (!liveInboxConfigured()) {
+    throw new Error("Supabase live inbox is not configured on Render.");
+  }
+
+  const response = await fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  const responseText = await response.text();
+  let payload = null;
+
+  try {
+    payload = responseText ? JSON.parse(responseText) : null;
+  } catch (error) {
+    payload = responseText;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      "Supabase " + response.status + ": " +
+      (typeof payload === "string"
+        ? payload
+        : JSON.stringify(payload))
+    );
+  }
+
+  return payload;
+}
+
+function createVisitorToken() {
+  return require("crypto").randomBytes(24).toString("hex");
+}
+
+function getBookingContactSnapshot(sessionId, clinicId) {
+  const booking = ensurePatientBooking(sessionId, clinicId);
+
+  return {
+    patient_name: booking.patientName || null,
+    phone: booking.phone || null,
+    whatsapp: booking.whatsapp || null,
+    email: booking.email || null
+  };
+}
+
+async function upsertLiveConversation(
+  sessionId,
+  clinicId,
+  latestMessage
+) {
+  if (!liveInboxConfigured()) return null;
+
+  const contact = getBookingContactSnapshot(sessionId, clinicId);
+  const now = new Date().toISOString();
+
+  const record = {
+    clinic_id: clinicId,
+    session_id: sessionId,
+    ...contact,
+    last_message_preview: String(latestMessage || "").slice(0, 500),
+    last_message_at: now,
+    updated_at: now
+  };
+
+  const rows = await supabaseRequest(
+    "/rest/v1/live_conversations?on_conflict=session_id",
+    {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify(record)
+    }
+  );
+
+  return rows && rows[0] ? rows[0] : null;
+}
+
+async function getLiveConversationBySession(sessionId) {
+  if (!liveInboxConfigured()) return null;
+
+  const rows = await supabaseRequest(
+    "/rest/v1/live_conversations?session_id=eq." +
+      encodeURIComponent(sessionId) +
+      "&select=*"
+  );
+
+  return rows && rows[0] ? rows[0] : null;
+}
+
+async function recordLiveMessage(sessionId, clinicId, sender, body, staffName) {
+  if (!liveInboxConfigured() || !body || !String(body).trim()) {
+    return null;
+  }
+
+  let conversation = await upsertLiveConversation(
+    sessionId,
+    clinicId,
+    body
+  );
+
+  if (!conversation) return null;
+
+  if (!conversation.visitor_token) {
+    const visitorToken = createVisitorToken();
+    const rows = await supabaseRequest(
+      "/rest/v1/live_conversations?id=eq." + conversation.id,
+      {
+        method: "PATCH",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify({ visitor_token: visitorToken })
+      }
+    );
+
+    conversation = rows && rows[0] ? rows[0] : conversation;
+  }
+
+  await supabaseRequest("/rest/v1/live_messages", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      conversation_id: conversation.id,
+      sender,
+      body: String(body).trim(),
+      staff_name: staffName || null
+    })
+  });
+
+  return conversation;
+}
+
+async function updateLiveConversation(id, changes) {
+  const rows = await supabaseRequest(
+    "/rest/v1/live_conversations?id=eq." + encodeURIComponent(id),
+    {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({
+        ...changes,
+        updated_at: new Date().toISOString()
+      })
+    }
+  );
+
+  return rows && rows[0] ? rows[0] : null;
+}
+
+function inboxAdminAuthorized(req) {
+  if (!INBOX_ADMIN_USERNAME || !INBOX_ADMIN_PASSWORD) {
+    return false;
+  }
+
+  const header = String(req.headers.authorization || "");
+  if (!header.startsWith("Basic ")) return false;
+
+  const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+  const separator = decoded.indexOf(":");
+  if (separator === -1) return false;
+
+  const username = decoded.slice(0, separator);
+  const password = decoded.slice(separator + 1);
+
+  return (
+    username === INBOX_ADMIN_USERNAME &&
+    password === INBOX_ADMIN_PASSWORD
+  );
+}
+
+function requireInboxAdmin(req, res, next) {
+  if (!INBOX_ADMIN_USERNAME || !INBOX_ADMIN_PASSWORD) {
+    return res.status(503).send(
+      "Live Inbox is not configured. Add INBOX_ADMIN_USERNAME and INBOX_ADMIN_PASSWORD in Render."
+    );
+  }
+
+  if (!inboxAdminAuthorized(req)) {
+    res.set("WWW-Authenticate", 'Basic realm="Eden Live Inbox"');
+    return res.status(401).send("Authentication required.");
+  }
+
+  next();
+}
 
 const CLINICS = {
   pearlsmile: {
@@ -53,12 +258,12 @@ const CLINICS = {
     languages: ["English", "Cebuano", "Tagalog"],
 
     openingHours: {
-      monday: "9:00 AMâ€“6:00 PM",
-      tuesday: "9:00 AMâ€“6:00 PM",
-      wednesday: "9:00 AMâ€“6:00 PM",
-      thursday: "9:00 AMâ€“6:00 PM",
-      friday: "9:00 AMâ€“6:00 PM",
-      saturday: "9:00 AMâ€“5:00 PM",
+      monday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
+      tuesday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
+      wednesday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
+      thursday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
+      friday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
+      saturday: "9:00 AMÃ¢â‚¬â€œ5:00 PM",
       sunday: "Closed"
     },
 
@@ -84,7 +289,7 @@ const CLINICS = {
         id: "cleaning",
         name: "Teeth Cleaning",
         aliases: ["cleaning", "oral prophylaxis", "prophylaxis"],
-        priceText: "â‚±1,500",
+        priceText: "Ã¢â€šÂ±1,500",
         estimatedVisitValue: 1500,
         durationMinutes: 45,
         consultationRequired: false,
@@ -95,7 +300,7 @@ const CLINICS = {
         id: "whitening",
         name: "Teeth Whitening",
         aliases: ["whitening", "teeth whitening", "bleaching"],
-        priceText: "From â‚±7,500",
+        priceText: "From Ã¢â€šÂ±7,500",
         estimatedVisitValue: 7500,
         durationMinutes: 90,
         consultationRequired: true,
@@ -109,7 +314,7 @@ const CLINICS = {
         id: "braces_consultation",
         name: "Braces Consultation",
         aliases: ["braces", "orthodontics", "orthodontic consultation"],
-        priceText: "â‚±500 consultation",
+        priceText: "Ã¢â€šÂ±500 consultation",
         estimatedVisitValue: 500,
         durationMinutes: 30,
         consultationRequired: true,
@@ -124,7 +329,7 @@ const CLINICS = {
         id: "implant_consultation",
         name: "Dental Implant Consultation",
         aliases: ["implant", "dental implant", "missing tooth"],
-        priceText: "â‚±500 consultation",
+        priceText: "Ã¢â€šÂ±500 consultation",
         estimatedVisitValue: 500,
         durationMinutes: 30,
         consultationRequired: true,
@@ -139,7 +344,7 @@ const CLINICS = {
         id: "veneers_consultation",
         name: "Veneers Consultation",
         aliases: ["veneers", "porcelain veneers"],
-        priceText: "â‚±500 consultation",
+        priceText: "Ã¢â€šÂ±500 consultation",
         estimatedVisitValue: 500,
         durationMinutes: 30,
         consultationRequired: true,
@@ -154,7 +359,7 @@ const CLINICS = {
         id: "emergency_dental",
         name: "Emergency Dental Assessment",
         aliases: ["tooth pain", "emergency", "swelling", "broken tooth", "toothache"],
-        priceText: "Assessment from â‚±800; treatment depends on findings",
+        priceText: "Assessment from Ã¢â€šÂ±800; treatment depends on findings",
         estimatedVisitValue: 2000,
         durationMinutes: 30,
         consultationRequired: true,
@@ -166,7 +371,7 @@ const CLINICS = {
         id: "kids_dentistry",
         name: "Kids Dentistry Visit",
         aliases: ["kids", "child", "children", "pediatric dentistry"],
-        priceText: "From â‚±1,200",
+        priceText: "From Ã¢â€šÂ±1,200",
         estimatedVisitValue: 1200,
         durationMinutes: 45,
         consultationRequired: false,
@@ -226,7 +431,7 @@ CLINICS["pattaya-smile"] = {
   country: "Thailand",
   timezone: "Asia/Bangkok",
   currency: "THB",
-  currencySymbol: "฿",
+  currencySymbol: "à¸¿",
   status: "demo",
 
   contact: {
@@ -463,7 +668,7 @@ Reasoning format:
 4. Keep it under 3 short sentences.
 
 Example:
-"You mentioned 8â€“10 missed calls and 15â€“20 late replies weekly. Even recovering 3â€“5 bookings could mean roughly â‚±13,500â€“â‚±22,500 per week at your â‚±4,500 average booking value. That is why follow-up is the first fix I'd prioritize."
+"You mentioned 8Ã¢â‚¬â€œ10 missed calls and 15Ã¢â‚¬â€œ20 late replies weekly. Even recovering 3Ã¢â‚¬â€œ5 bookings could mean roughly Ã¢â€šÂ±13,500Ã¢â‚¬â€œÃ¢â€šÂ±22,500 per week at your Ã¢â€šÂ±4,500 average booking value. That is why follow-up is the first fix I'd prioritize."
 
 Avoid vague phrases such as:
 "worth thousands"
@@ -474,10 +679,10 @@ Use numerical ranges whenever possible.
 Before asking about Eden's service, help the clinic owner reach their own conclusion that revenue is being lost.
 
 Website scan honesty:
-Never say â€œI checked the websiteâ€ or describe website features unless the automated website scan confirms them.
-If website scan data is not available, say: â€œI have the website link, but the automated website scan is still limited.â€
+Never say Ã¢â‚¬Å“I checked the websiteÃ¢â‚¬Â or describe website features unless the automated website scan confirms them.
+If website scan data is not available, say: Ã¢â‚¬Å“I have the website link, but the automated website scan is still limited.Ã¢â‚¬Â
 Do not guess whether booking, live chat, phone number, reviews, or trust signals exist.
-Use â€œI did not detectâ€ only when scan data explicitly says it was not detected.
+Use Ã¢â‚¬Å“I did not detectÃ¢â‚¬Â only when scan data explicitly says it was not detected.
 
 Eden pricing and setup rules:
 
@@ -540,7 +745,7 @@ Help the patient get a useful answer and move smoothly toward a booking request.
 
 STYLE
 - Warm, natural, reassuring, and concise.
-- Usually 1â€“3 short paragraphs.
+- Usually 1Ã¢â‚¬â€œ3 short paragraphs.
 - Ask only one next-step question at a time.
 - Use the clinic assistant's name naturally, but do not repeat it in every message.
 - Match English, Tagalog, or Cebuano lightly when the patient uses it.
@@ -573,7 +778,7 @@ function formatClinicServices(clinic) {
   return (clinic.services || [])
     .map(service => {
       const potential = service.potentialServiceName
-        ? ` Potential next service: ${service.potentialServiceName} (${clinic.currencySymbol}${service.potentialServiceValueMin?.toLocaleString()}â€“${clinic.currencySymbol}${service.potentialServiceValueMax?.toLocaleString()}).`
+        ? ` Potential next service: ${service.potentialServiceName} (${clinic.currencySymbol}${service.potentialServiceValueMin?.toLocaleString()}Ã¢â‚¬â€œ${clinic.currencySymbol}${service.potentialServiceValueMax?.toLocaleString()}).`
         : "";
 
       return `- ${service.name}: ${service.priceText}; approximately ${service.durationMinutes} minutes.${potential}`;
@@ -638,7 +843,7 @@ Do not invent clinic information.
 }
 
 const RECEPTIONIST_SYSTEM_PROMPT = `
-You are Eden Clinic Network's Revenue Rescue AI Receptionistâ„¢ Advisor.
+You are Eden Clinic Network's Revenue Rescue AI ReceptionistÃ¢â€žÂ¢ Advisor.
 Your mission is to identify motivated clinics that qualify for a free AI Receptionist.
 You are NOT trying to sell.
 You are selecting clinics that are a good fit.
@@ -647,7 +852,7 @@ Warm.
 Professional.
 Commercially intelligent.
 Use short chat replies.
-Usually 1â€“3 short lines.
+Usually 1Ã¢â‚¬â€œ3 short lines.
 Only ask ONE question at a time.
 Never sound like a survey.
 Never sound like a chatbot.
@@ -655,10 +860,10 @@ Always react naturally to what the clinic owner just wrote.
 
 YOUR GOAL
 Help the clinic owner understand:
-â€¢ why patients disappear
-â€¢ how an AI Receptionist recovers bookings
-â€¢ why faster replies matter
-â€¢ whether the clinic qualifies
+Ã¢â‚¬Â¢ why patients disappear
+Ã¢â‚¬Â¢ how an AI Receptionist recovers bookings
+Ã¢â‚¬Â¢ why faster replies matter
+Ã¢â‚¬Â¢ whether the clinic qualifies
 
 If the clinic is a good fit, collect contact information.
 If not, politely explain why.
@@ -668,7 +873,7 @@ IMPORTANT
 This AI Receptionist is a REAL service.
 It is not a demo.
 Selected clinics receive a professionally built AI Receptionist page.
-The normal development value starts around â‚±25,000.
+The normal development value starts around Ã¢â€šÂ±25,000.
 Selected clinics currently receive it free.
 
 Never pressure anyone.
@@ -679,10 +884,10 @@ FIRST MESSAGE
 The first reply should naturally explain value.
 Example style:
 
-"Hi ðŸ‘‹
+"Hi Ã°Å¸â€˜â€¹
 
 Many clinics lose bookings simply because patients don't receive a fast reply.
-Even recovering one extra booking per day can sometimes mean â‚±60,000â€“â‚±150,000 additional monthly revenue.
+Even recovering one extra booking per day can sometimes mean Ã¢â€šÂ±60,000Ã¢â‚¬â€œÃ¢â€šÂ±150,000 additional monthly revenue.
 I'd be happy to see whether your clinic qualifies for a free AI Receptionist.
 What clinic do you run?"
 
@@ -755,7 +960,7 @@ Never oversell it.
 PRICING
 If asked:
 Explain:
-Normal development starts around â‚±25,000.
+Normal development starts around Ã¢â€šÂ±25,000.
 Selected clinics currently receive it free.
 Future Eden services are usually performance-based.
 Eden succeeds when the clinic succeeds.
@@ -1725,7 +1930,7 @@ function calculateRecoveryEstimate(transcript) {
 
   const missedMatch = text.match(/(\d+)\s*(missed calls|missed call|calls)/i);
   const lateMatch = text.match(/(\d+)\s*(late replies|late reply|messages|inquiries|replies)/i);
-  const valueMatch = text.match(/â‚±?\s?(\d{3,6})\s*(per booking|per patient|average|avg)/i);
+  const valueMatch = text.match(/Ã¢â€šÂ±?\s?(\d{3,6})\s*(per booking|per patient|average|avg)/i);
   const conversionMatch = text.match(/(\d{1,3})\s*%/i);
 
   let missedCallsPerWeek = missedMatch ? Number(missedMatch[1]) : 0;
@@ -1748,20 +1953,20 @@ if (!conversionRate) {
 
   if (missedCallsPerWeek && conversionRate) {
     recoveredBookingsPerMonth = missedCallsPerWeek * conversionRate * 4;
-    explanation = `Based on ${missedCallsPerWeek} missed calls per week, ${Math.round(conversionRate * 100)}% stated conversion, and â‚±${safePatientValue.toLocaleString()} average booking value.`;
+    explanation = `Based on ${missedCallsPerWeek} missed calls per week, ${Math.round(conversionRate * 100)}% stated conversion, and Ã¢â€šÂ±${safePatientValue.toLocaleString()} average booking value.`;
   } else {
     recoveredBookingsPerMonth =
       missedCallsPerWeek * 4.3 * (1 / 3) +
       lateRepliesPerWeek * 4.3 * (1 / 5);
 
-    explanation = `Based on a rough benchmark of recovering about 1 in 3 missed calls and 1 in 5 delayed replies, using â‚±${safePatientValue.toLocaleString()} average booking value.`;
+    explanation = `Based on a rough benchmark of recovering about 1 in 3 missed calls and 1 in 5 delayed replies, using Ã¢â€šÂ±${safePatientValue.toLocaleString()} average booking value.`;
   }
 
   const estimate = Math.round((recoveredBookingsPerMonth * safePatientValue) / 5000) * 5000;
 
   return {
-    revenue: `â‚±${estimate.toLocaleString()}/month`,
-    expectedOutcome: `Estimated recoverable revenue is around â‚±${estimate.toLocaleString()}/month. ${explanation}`
+    revenue: `Ã¢â€šÂ±${estimate.toLocaleString()}/month`,
+    expectedOutcome: `Estimated recoverable revenue is around Ã¢â€šÂ±${estimate.toLocaleString()}/month. ${explanation}`
   };
 }
 
@@ -1812,7 +2017,7 @@ Return ONLY valid JSON:
 {
   "clinicName": "SmileCare Dental Cebu",
   "score": 72,
-  "revenue": "â‚±45,000 - â‚±180,000/month",
+  "revenue": "Ã¢â€šÂ±45,000 - Ã¢â€šÂ±180,000/month",
 
   "biggestLeak":
   "Most important revenue leak discovered from the conversation",
@@ -1955,7 +2160,7 @@ function safe(value, fallback = "") {
 function buildAuditHtml({ clinic, audit }) {
   const clinicName = safe(audit.clinicName, clinic || "Your Clinic");
   const score = safe(audit.score, "65");
-  const revenue = safe(audit.revenue, "â‚±45,000 - â‚±180,000/month");
+  const revenue = safe(audit.revenue, "Ã¢â€šÂ±45,000 - Ã¢â€šÂ±180,000/month");
   const summary = safe(
     audit.summary,
     `${clinicName} appears to have recoverable revenue opportunities through missed calls, slow replies, and weak follow-up.`
@@ -2022,7 +2227,7 @@ margin-bottom:22px;
   font-weight:bold;
   margin-bottom:8px;
   ">
-  Eden Clinic Network â€¢ AI Growth Audit
+  Eden Clinic Network Ã¢â‚¬Â¢ AI Growth Audit
   </div>
 
   <h1 style="
@@ -2038,7 +2243,7 @@ margin-bottom:22px;
   color:#e5e7eb;
   margin:0;
   ">
-  Clinic Revenue Rescue Auditâ„¢
+  Clinic Revenue Rescue AuditÃ¢â€žÂ¢
   </p>
 
 </div>
@@ -2348,10 +2553,10 @@ const leadType = sessionLeadType[sessionId] || "audit";
 
 const leadHeader =
   leadType === "receptionist"
-    ? "ðŸŸ¢ NEW REVENUE RESCUE AI RECEPTIONISTâ„¢ LEAD"
+    ? "Ã°Å¸Å¸Â¢ NEW REVENUE RESCUE AI RECEPTIONISTÃ¢â€žÂ¢ LEAD"
     : leadType === "booking"
-    ? "ðŸŸ£ NEW AI BOOKING LEAD"
-    : "ðŸ”¥ NEW CLINIC AUDIT LEAD";
+    ? "Ã°Å¸Å¸Â£ NEW AI BOOKING LEAD"
+    : "Ã°Å¸â€Â¥ NEW CLINIC AUDIT LEAD";
   
   const tempMatch = summary.match(/Lead temperature:\s*([^\n]+)/i);
   const intentMatch = summary.match(/Buying intent score 1-10:\s*([^\n]+)/i);
@@ -2368,26 +2573,26 @@ intent = intent.match(/\d+/)?.[0] || intent;
   const followUp = followMatch ? followMatch[1].trim() : "Review lead and follow up.";
 
   return `
-${alertedSessions[sessionId] ? "ðŸ” UPDATED " + leadHeader : leadHeader}
+${alertedSessions[sessionId] ? "Ã°Å¸â€Â UPDATED " + leadHeader : leadHeader}
 
-ðŸ¥ ${p.clinicName || "Unknown clinic"}
-ðŸ“ ${p.city || "Unknown city"}
-ðŸ·ï¸ ${p.clinicType || "Unknown type"}
-ðŸŒ¡ï¸ ${intent} of 10
+Ã°Å¸ÂÂ¥ ${p.clinicName || "Unknown clinic"}
+Ã°Å¸â€œÂ ${p.city || "Unknown city"}
+Ã°Å¸ÂÂ·Ã¯Â¸Â ${p.clinicType || "Unknown type"}
+Ã°Å¸Å’Â¡Ã¯Â¸Â ${intent} of 10
 ${temperature}
 
-ðŸŒ ${p.website || "No website captured"}
-ðŸ“§ ${p.email || "No email captured"}
-ðŸ“˜ ${p.facebook || "No Facebook captured"}
-ðŸ“± ${p.whatsapp || "No WhatsApp captured"}
+Ã°Å¸Å’Â ${p.website || "No website captured"}
+Ã°Å¸â€œÂ§ ${p.email || "No email captured"}
+Ã°Å¸â€œËœ ${p.facebook || "No Facebook captured"}
+Ã°Å¸â€œÂ± ${p.whatsapp || "No WhatsApp captured"}
 
-ðŸ’° Estimated opportunity:
+Ã°Å¸â€™Â° Estimated opportunity:
 ${opportunity}
 
-âš  Biggest leak:
+Ã¢Å¡  Biggest leak:
 ${problem}
 
-âž¡ Recommended next step:
+Ã¢Å¾Â¡ Recommended next step:
 ${followUp}
 
 Session:
@@ -2925,7 +3130,7 @@ console.log(
   "Booking saved to clinic sheet:",
   clinic.clinicName,
   booking.leadId,
-  "→",
+  "â†’",
   result.sheet,
   result.action,
   "row",
@@ -3061,7 +3266,7 @@ const HUMAN_HANDOFF_COOLDOWN_MS = 30 * 60 * 1000;
 function patientNeedsHumanHelp(latestUserText) {
   const text = String(latestUserText || '').toLowerCase();
 
-  return /\b(human|real person|live agent|talk (to|with) (a )?(person|human|staff|receptionist|team member)|speak (to|with) (a )?(person|human|staff|receptionist|team member)|call me|please call|urgent|emergency|help now)\b|พนักงาน|คนจริง|คุยกับคน|แอดมิน|เจ้าหน้าที่|ด่วน|ปวดฟัน|บวม|เลือดออก/i.test(
+  return /\b(human|real person|live agent|talk (to|with) (a )?(person|human|staff|receptionist|team member)|speak (to|with) (a )?(person|human|staff|receptionist|team member)|call me|please call|urgent|emergency|help now)\b|à¸žà¸™à¸±à¸à¸‡à¸²à¸™|à¸„à¸™à¸ˆà¸£à¸´à¸‡|à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™|à¹à¸­à¸”à¸¡à¸´à¸™|à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆ|à¸”à¹ˆà¸§à¸™|à¸›à¸§à¸”à¸Ÿà¸±à¸™|à¸šà¸§à¸¡|à¹€à¸¥à¸·à¸­à¸”à¸­à¸­à¸/i.test(
     text
   );
 }
@@ -3083,19 +3288,19 @@ async function maybeSendHumanHandoffAlert(sessionId, latestUserText) {
 
   const booking = ensurePatientBooking(sessionId, clinicId);
   const message = [
-    '🚨 HUMAN FOLLOW-UP REQUEST — ' + clinic.clinicName.toUpperCase(),
+    'ðŸš¨ HUMAN FOLLOW-UP REQUEST â€” ' + clinic.clinicName.toUpperCase(),
     '',
-    '🆔 Lead: ' + (booking.leadId || sessionId),
-    '👤 Patient: ' + (booking.patientName || 'Not captured yet'),
-    '📱 Phone: ' + (booking.phone || 'Not captured yet'),
-    '💬 WhatsApp: ' + (booking.whatsapp || 'Not captured yet'),
-    '🦷 Service: ' + (booking.serviceId || 'Not confirmed yet'),
-    '⚡ Action: Please contact this patient as soon as possible.',
+    'ðŸ†” Lead: ' + (booking.leadId || sessionId),
+    'ðŸ‘¤ Patient: ' + (booking.patientName || 'Not captured yet'),
+    'ðŸ“± Phone: ' + (booking.phone || 'Not captured yet'),
+    'ðŸ’¬ WhatsApp: ' + (booking.whatsapp || 'Not captured yet'),
+    'ðŸ¦· Service: ' + (booking.serviceId || 'Not confirmed yet'),
+    'âš¡ Action: Please contact this patient as soon as possible.',
     '',
-    '💬 Latest patient message:',
+    'ðŸ’¬ Latest patient message:',
     String(latestUserText || '').trim(),
     '',
-    '🔗 Channel: Website AI booking chat',
+    'ðŸ”— Channel: Website AI booking chat',
     'Session: ' + sessionId
   ].join('\n');
 
@@ -3371,7 +3576,7 @@ if (
       data.output?.[1]?.content?.[0]?.text;
 
     if (!reply || reply.trim() === "") {
-      reply = "Got you ðŸ˜Š what would you like help with?";
+      reply = "Got you Ã°Å¸ËœÅ  what would you like help with?";
     }
 
     sessions[sessionId].push({
@@ -3386,13 +3591,13 @@ if (
     return reply.trim();
   } catch (error) {
     console.error("OpenAI error:", error);
-    return "One sec ðŸ˜Š let me check that for you.";
+    return "One sec Ã°Å¸ËœÅ  let me check that for you.";
   }
 }
 
 async function sendMessage(senderId, text) {
   if (!text || text.trim() === "") {
-    text = "Hi ðŸ˜Š how can I help you today?";
+    text = "Hi Ã°Å¸ËœÅ  how can I help you today?";
   }
 
   const response = await fetch(
@@ -3627,7 +3832,7 @@ Time: ${new Date().toISOString()}`
 
 app.get("/test-telegram", async (req, res) => {
   try {
-    await sendTelegram("âœ… Eden Telegram test alert works.");
+    await sendTelegram("Ã¢Å“â€¦ Eden Telegram test alert works.");
     res.send("Telegram test sent");
   } catch (err) {
     console.error("Telegram test error:", err);
@@ -3715,7 +3920,7 @@ app.post("/chat", async (req, res) => {
 sessionLeadType[sessionId] = "audit";
     
     if (!userText.trim()) {
-      return res.json({ reply: "Hi ðŸ˜Š What is your clinic name and website?" });
+      return res.json({ reply: "Hi Ã°Å¸ËœÅ  What is your clinic name and website?" });
     }
 
     const reply = await getAIReply(userText, sessionId);
@@ -3726,7 +3931,7 @@ sessionLeadType[sessionId] = "audit";
 });
   } catch (error) {
     console.error("Chat error:", error);
-    res.status(500).json({ reply: "One sec ðŸ˜Š let me check that for you." });
+    res.status(500).json({ reply: "One sec Ã°Å¸ËœÅ  let me check that for you." });
   }
 });
 
@@ -3765,8 +3970,8 @@ app.post("/booking-chat", async (req, res) => {
     if (!userText.trim()) {
       return res.json({
         reply:
-          `Hi ðŸ˜Š Welcome to ${clinic.clinicName}. ` +
-          `Iâ€™m ${clinic.assistantName}. How can I help you today?`,
+          `Hi Ã°Å¸ËœÅ  Welcome to ${clinic.clinicName}. ` +
+          `IÃ¢â‚¬â„¢m ${clinic.assistantName}. How can I help you today?`,
 
         sessionId,
         clinicId,
@@ -3777,6 +3982,43 @@ app.post("/booking-chat", async (req, res) => {
     ensurePatientBooking(sessionId, clinicId);
     updatePatientBookingHeuristically(sessionId, clinicId, userText);
 
+    let liveConversation = null;
+
+    try {
+      liveConversation = await recordLiveMessage(
+        sessionId,
+        clinicId,
+        "visitor",
+        userText
+      );
+    } catch (error) {
+      // The receptionist must stay available if the inbox has a temporary issue.
+      console.error("Live inbox visitor-message save error:", error.message);
+    }
+
+    /*
+      A staff member has taken this conversation over. Do not let Nida
+      answer over the human. The Carrd widget will poll for the human reply.
+    */
+    if (liveConversation?.mode === "human") {
+      try {
+        await maybeSendBookingAlert(sessionId, userText);
+      } catch (error) {
+        console.error("Human-mode booking pipeline error:", error.message);
+      }
+
+      return res.json({
+        reply:
+          "Our clinic team has joined this chat. Please give them a moment to reply. ðŸ™",
+        sessionId,
+        clinicId,
+        clinicName: clinic.clinicName,
+        assistantName: clinic.assistantName,
+        humanMode: true,
+        liveChatToken: liveConversation.visitor_token || null
+      });
+    }
+
     const clinicBookingPrompt = buildClinicBookingPrompt(clinic);
 
     const reply = await getAIReply(
@@ -3785,12 +4027,27 @@ app.post("/booking-chat", async (req, res) => {
       clinicBookingPrompt
     );
 
+    try {
+      const savedConversation = await recordLiveMessage(
+        sessionId,
+        clinicId,
+        "ai",
+        reply
+      );
+
+      liveConversation = savedConversation || liveConversation;
+    } catch (error) {
+      console.error("Live inbox AI-message save error:", error.message);
+    }
+
     res.json({
       reply,
       sessionId,
       clinicId,
       clinicName: clinic.clinicName,
-      assistantName: clinic.assistantName
+      assistantName: clinic.assistantName,
+      humanMode: false,
+      liveChatToken: liveConversation?.visitor_token || null
     });
 
   } catch (error) {
@@ -3801,7 +4058,7 @@ app.post("/booking-chat", async (req, res) => {
 
     res.status(500).json({
       reply:
-        "One sec ðŸ˜Š let me check that for you."
+        "One sec Ã°Å¸ËœÅ  let me check that for you."
     });
   }
 });
@@ -3816,7 +4073,7 @@ sessionLeadType[sessionId] = "receptionist";
     if (!userText.trim()) {
       return res.json({
         reply:
-          "Hi ðŸ‘‹ Many clinics lose bookings simply because patients donâ€™t receive a fast reply.\n\nIâ€™d be happy to see whether your clinic qualifies for a free AI Receptionist.\n\nWhat clinic do you run?",
+          "Hi Ã°Å¸â€˜â€¹ Many clinics lose bookings simply because patients donÃ¢â‚¬â„¢t receive a fast reply.\n\nIÃ¢â‚¬â„¢d be happy to see whether your clinic qualifies for a free AI Receptionist.\n\nWhat clinic do you run?",
         sessionId
       });
     }
@@ -3835,7 +4092,7 @@ sessionLeadType[sessionId] = "receptionist";
   } catch (error) {
     console.error("Revenue receptionist chat error:", error);
     res.status(500).json({
-      reply: "One sec ðŸ˜Š let me check that for you."
+      reply: "One sec Ã°Å¸ËœÅ  let me check that for you."
     });
   }
 });
@@ -3883,6 +4140,345 @@ app.get("/audit-preview/:sessionId", async (req, res) => {
   } catch (error) {
     console.error("Audit preview error:", error);
     res.status(500).send("Audit preview unavailable.");
+  }
+});
+
+/* =========================================================
+   LIVE HUMAN INBOX â€” STAFF CONSOLE + PRIVATE CHAT API
+========================================================= */
+
+function escapeInboxHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function buildLiveInboxHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eden Live Inbox</title>
+  <style>
+    :root { --ink:#08284a; --navy:#062b55; --cream:#fffaf5; --line:#d8e2ec; --human:#e6f4ea; --ai:#eef6ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f4f7fa; color:var(--ink); font-family:Arial,Helvetica,sans-serif; }
+    header { height:72px; display:flex; align-items:center; justify-content:space-between; padding:0 24px; color:white; background:var(--navy); }
+    h1 { margin:0; font-size:21px; } .hint { opacity:.82; font-size:13px; }
+    main { display:grid; grid-template-columns:380px minmax(0,1fr); min-height:calc(100vh - 72px); }
+    aside { border-right:1px solid var(--line); background:white; overflow:auto; }
+    .filters { padding:14px; border-bottom:1px solid var(--line); }
+    select { width:100%; padding:10px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--ink); }
+    .conversation { width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); padding:14px 16px; background:white; cursor:pointer; color:var(--ink); }
+    .conversation:hover,.conversation.selected { background:#edf5fb; }
+    .conversation strong,.conversation small { display:block; } .conversation small { margin-top:4px; color:#64748b; }
+    .badge { float:right; padding:3px 7px; border-radius:999px; font-size:11px; font-weight:bold; background:var(--ai); }
+    .badge.human { background:var(--human); color:#176b36; }
+    section { display:flex; flex-direction:column; min-width:0; }
+    #empty { margin:auto; color:#64748b; text-align:center; }
+    #thread { flex:1; overflow:auto; padding:22px; }
+    .message { max-width:78%; margin:0 0 13px; padding:11px 13px; border-radius:15px; white-space:pre-wrap; line-height:1.4; background:white; border:1px solid var(--line); }
+    .message.visitor { margin-right:auto; }.message.ai,.message.system { margin-right:auto; background:var(--ai); }
+    .message.human { margin-left:auto; background:var(--human); border-color:#b7dfc2; }
+    .message small { display:block; margin-top:5px; color:#64748b; font-size:11px; }
+    #controls { display:flex; gap:9px; padding:12px 22px; border-top:1px solid var(--line); background:white; }
+    button { border:0; border-radius:9px; padding:10px 13px; font-weight:bold; cursor:pointer; background:#e7eef5; color:var(--ink); }
+    button.primary { background:#0b6bcb; color:white; } button.takeover { background:#e7f5ea; color:#176b36; }
+    #composer { display:flex; gap:9px; padding:12px 22px 18px; background:white; }
+    textarea { flex:1; min-height:52px; padding:11px; border:1px solid var(--line); border-radius:10px; font:inherit; resize:vertical; }
+    #status { padding:7px 22px; color:#64748b; font-size:12px; background:white; }
+    @media (max-width:760px) { main { grid-template-columns:1fr; } aside { max-height:34vh; border-right:0; border-bottom:1px solid var(--line); } header { padding:0 15px; } }
+  </style>
+</head>
+<body>
+  <header><div><h1>Eden Live Inbox</h1><div class="hint">AI conversations and human takeover</div></div><div class="hint" id="refresh-note">Refreshingâ€¦</div></header>
+  <main>
+    <aside><div class="filters"><select id="clinic-filter"><option value="">All clinics</option><option value="pattaya-smile">Pattaya Smile Dental</option><option value="pearlsmile">PearlSmile Dental</option></select></div><div id="conversation-list"></div></aside>
+    <section id="detail"><div id="empty">Select a conversation to see its messages.</div><div id="thread" hidden></div><div id="controls" hidden><button class="takeover" id="takeover">Take over from AI</button><button id="return-ai">Return to Nida / AI</button></div><div id="composer" hidden><textarea id="reply" placeholder="Write a reply as the clinic teamâ€¦"></textarea><button class="primary" id="send">Send</button></div><div id="status" hidden></div></section>
+  </main>
+  <script>
+    let selectedConversation = null;
+    let lastMessageCount = 0;
+    const list = document.getElementById('conversation-list');
+    const thread = document.getElementById('thread');
+    const empty = document.getElementById('empty');
+    const controls = document.getElementById('controls');
+    const composer = document.getElementById('composer');
+    const status = document.getElementById('status');
+    const clinicFilter = document.getElementById('clinic-filter');
+
+    async function api(path, options) {
+      const response = await fetch(path, { credentials:'same-origin', headers:{'Content-Type':'application/json'}, ...options });
+      if (!response.ok) throw new Error(await response.text());
+      return response.json();
+    }
+    function formatTime(value) { return value ? new Date(value).toLocaleString() : ''; }
+    function escapeHtml(value) { const node=document.createElement('div'); node.textContent=value || ''; return node.innerHTML; }
+    function renderConversations(items) {
+      list.innerHTML = items.map(function(item) {
+        const selected = selectedConversation && selectedConversation.id === item.id ? ' selected' : '';
+        const modeClass = item.mode === 'human' ? ' human' : '';
+        const person = item.patient_name || item.whatsapp || item.phone || 'New visitor';
+        return '<button class="conversation' + selected + '" data-id="' + item.id + '"><span class="badge' + modeClass + '">' + (item.mode === 'human' ? 'HUMAN' : 'AI') + '</span><strong>' + escapeHtml(person) + '</strong><small>' + escapeHtml(item.clinic_id) + ' Â· ' + escapeHtml(item.last_message_preview || '') + '</small></button>';
+      }).join('') || '<div id="empty">No live conversations yet.</div>';
+      list.querySelectorAll('.conversation').forEach(function(button) { button.onclick = function() { selectConversation(button.dataset.id); }; });
+    }
+    async function loadConversations() {
+      try {
+        const clinicId = clinicFilter.value;
+        const items = await api('/api/live-inbox/conversations' + (clinicId ? '?clinicId=' + encodeURIComponent(clinicId) : ''));
+        renderConversations(items);
+        document.getElementById('refresh-note').textContent = 'Updated ' + new Date().toLocaleTimeString();
+      } catch (error) { document.getElementById('refresh-note').textContent = 'Could not refresh'; }
+    }
+    async function selectConversation(id) {
+      try {
+        const items = await api('/api/live-inbox/conversations');
+        selectedConversation = items.find(function(item) { return item.id === id; }) || selectedConversation;
+        empty.hidden = true; thread.hidden = false; controls.hidden = false; composer.hidden = false; status.hidden = false;
+        await loadMessages(); await loadConversations();
+      } catch (error) { alert('Could not open this conversation.'); }
+    }
+    async function loadMessages() {
+      if (!selectedConversation) return;
+      const messages = await api('/api/live-inbox/conversations/' + selectedConversation.id + '/messages');
+      const shouldStick = thread.scrollTop + thread.clientHeight >= thread.scrollHeight - 60;
+      thread.innerHTML = messages.map(function(message) {
+        return '<div class="message ' + message.sender + '">' + escapeHtml(message.body) + '<small>' + escapeHtml(message.staff_name || message.sender) + ' Â· ' + formatTime(message.created_at) + '</small></div>';
+      }).join('');
+      if (shouldStick || messages.length !== lastMessageCount) thread.scrollTop = thread.scrollHeight;
+      lastMessageCount = messages.length;
+      const isHuman = selectedConversation.mode === 'human';
+      document.getElementById('takeover').disabled = isHuman;
+      document.getElementById('return-ai').disabled = !isHuman;
+      status.textContent = isHuman ? 'Human takeover active â€” Nida is paused.' : 'Nida is active.';
+    }
+    async function takeOver() {
+      if (!selectedConversation) return;
+      const staffName = prompt('Your name for this conversation:', 'Clinic Team');
+      if (!staffName) return;
+      selectedConversation = await api('/api/live-inbox/conversations/' + selectedConversation.id + '/takeover', {method:'POST', body:JSON.stringify({staffName:staffName})});
+      await loadMessages(); await loadConversations();
+    }
+    async function returnToAi() {
+      if (!selectedConversation) return;
+      selectedConversation = await api('/api/live-inbox/conversations/' + selectedConversation.id + '/return-to-ai', {method:'POST'});
+      await loadMessages(); await loadConversations();
+    }
+    async function sendReply() {
+      if (!selectedConversation) return;
+      const input = document.getElementById('reply'); const body = input.value.trim();
+      if (!body) return;
+      const staffName = prompt('Your name for this reply:', 'Clinic Team');
+      if (!staffName) return;
+      await api('/api/live-inbox/conversations/' + selectedConversation.id + '/messages', {method:'POST', body:JSON.stringify({body:body, staffName:staffName})});
+      input.value=''; await loadMessages(); await loadConversations();
+    }
+    clinicFilter.onchange = loadConversations;
+    document.getElementById('takeover').onclick = takeOver;
+    document.getElementById('return-ai').onclick = returnToAi;
+    document.getElementById('send').onclick = sendReply;
+    document.getElementById('reply').onkeydown = function(event) { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); sendReply(); } };
+    loadConversations();
+    setInterval(function() { loadConversations(); loadMessages().catch(function(){}); }, 2500);
+  </script>
+</body>
+</html>`;
+}
+
+app.get("/live-inbox", requireInboxAdmin, (req, res) => {
+  res.type("html").send(buildLiveInboxHtml());
+});
+
+app.get("/api/live-inbox/conversations", requireInboxAdmin, async (req, res) => {
+  try {
+    const clinicId = String(req.query.clinicId || "").trim();
+    const clinicFilter = clinicId
+      ? "&clinic_id=eq." + encodeURIComponent(clinicId)
+      : "";
+
+    const rows = await supabaseRequest(
+      "/rest/v1/live_conversations?select=*&order=updated_at.desc&limit=100" + clinicFilter
+    );
+
+    res.json(rows || []);
+  } catch (error) {
+    console.error("Live inbox list error:", error.message);
+    res.status(500).json({ error: "Could not load conversations." });
+  }
+});
+
+app.get(
+  "/api/live-inbox/conversations/:conversationId/messages",
+  requireInboxAdmin,
+  async (req, res) => {
+    try {
+      const rows = await supabaseRequest(
+        "/rest/v1/live_messages?conversation_id=eq." +
+          encodeURIComponent(req.params.conversationId) +
+          "&select=*&order=created_at.asc"
+      );
+
+      res.json(rows || []);
+    } catch (error) {
+      console.error("Live inbox message list error:", error.message);
+      res.status(500).json({ error: "Could not load messages." });
+    }
+  }
+);
+
+app.post(
+  "/api/live-inbox/conversations/:conversationId/takeover",
+  requireInboxAdmin,
+  async (req, res) => {
+    try {
+      const staffName = String(req.body.staffName || "Clinic Team").trim();
+      const conversation = await updateLiveConversation(
+        req.params.conversationId,
+        {
+          mode: "human",
+          status: "open",
+          taken_over_by: staffName,
+          taken_over_at: new Date().toISOString()
+        }
+      );
+
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found." });
+      }
+
+      await supabaseRequest("/rest/v1/live_messages", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          conversation_id: conversation.id,
+          sender: "system",
+          body: staffName + " has joined the conversation.",
+          staff_name: staffName
+        })
+      });
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Live inbox takeover error:", error.message);
+      res.status(500).json({ error: "Could not take over this conversation." });
+    }
+  }
+);
+
+app.post(
+  "/api/live-inbox/conversations/:conversationId/return-to-ai",
+  requireInboxAdmin,
+  async (req, res) => {
+    try {
+      const conversation = await updateLiveConversation(
+        req.params.conversationId,
+        {
+          mode: "ai",
+          returned_to_ai_at: new Date().toISOString()
+        }
+      );
+
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found." });
+      }
+
+      await supabaseRequest("/rest/v1/live_messages", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          conversation_id: conversation.id,
+          sender: "system",
+          body: "The clinic team has returned this conversation to the AI receptionist."
+        })
+      });
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Live inbox return-to-AI error:", error.message);
+      res.status(500).json({ error: "Could not return this conversation to AI." });
+    }
+  }
+);
+
+app.post(
+  "/api/live-inbox/conversations/:conversationId/messages",
+  requireInboxAdmin,
+  async (req, res) => {
+    try {
+      const body = String(req.body.body || "").trim();
+      const staffName = String(req.body.staffName || "Clinic Team").trim();
+
+      if (!body) {
+        return res.status(400).json({ error: "Message text is required." });
+      }
+
+      const messages = await supabaseRequest(
+        "/rest/v1/live_messages?conversation_id=eq." +
+          encodeURIComponent(req.params.conversationId) +
+          "&select=conversation_id&limit=1"
+      );
+
+      if (!messages || messages.length === 0) {
+        return res.status(404).json({ error: "Conversation not found." });
+      }
+
+      await supabaseRequest("/rest/v1/live_messages", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({
+          conversation_id: req.params.conversationId,
+          sender: "human",
+          body,
+          staff_name: staffName
+        })
+      });
+
+      await updateLiveConversation(req.params.conversationId, {
+        mode: "human",
+        status: "open",
+        taken_over_by: staffName,
+        last_message_preview: body,
+        last_message_at: new Date().toISOString()
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Live inbox staff-message error:", error.message);
+      res.status(500).json({ error: "Could not send the message." });
+    }
+  }
+);
+
+app.get("/live-chat/:sessionId", async (req, res) => {
+  try {
+    const conversation = await getLiveConversationBySession(req.params.sessionId);
+    const visitorToken = String(req.query.token || "");
+
+    if (!conversation || !visitorToken || visitorToken !== conversation.visitor_token) {
+      return res.status(404).json({ error: "Conversation not found." });
+    }
+
+    const after = String(req.query.after || "1970-01-01T00:00:00.000Z");
+    const rows = await supabaseRequest(
+      "/rest/v1/live_messages?conversation_id=eq." +
+        encodeURIComponent(conversation.id) +
+        "&created_at=gt." + encodeURIComponent(after) +
+        "&select=id,sender,body,staff_name,created_at&order=created_at.asc"
+    );
+
+    res.json({
+      mode: conversation.mode,
+      messages: rows || [],
+      updatedAt: conversation.updated_at
+    });
+  } catch (error) {
+    console.error("Visitor live-chat poll error:", error.message);
+    res.status(500).json({ error: "Could not load live messages." });
   }
 });
 
