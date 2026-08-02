@@ -3110,10 +3110,10 @@ async function maybeSendBookingAlert(sessionId, latestUserText) {
   const clinic = getClinicConfig(clinicId);
   if (!clinic) return;
 
-  await maybeSendHumanHandoffAlert(sessionId, latestUserText);
-
   updatePatientBookingHeuristically(sessionId, clinicId, latestUserText);
-  await extractPatientBookingWithAI(sessionId);
+await extractPatientBookingWithAI(sessionId);
+
+await maybeSendHumanHandoffAlert(sessionId, latestUserText);
 
   const booking = ensurePatientBooking(sessionId, clinicId);
   const bookingSignal =
