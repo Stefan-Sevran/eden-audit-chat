@@ -2654,9 +2654,11 @@ function createBookingTelegramCard(sessionId) {
     channel: "\u{1F517}"
   };
 
-  const currencySymbol =
-    clinic.currency === "PHP"
-      ? "\u20B1"
+const currencySymbol =
+  clinic.currency === "PHP"
+    ? "\u20B1"
+    : clinic.currency === "THB"
+      ? "\u0E3F"
       : clinic.currencySymbol;
 
   const potentialText = booking.potentialServiceName
