@@ -2891,7 +2891,6 @@ ${icons.booking} Service: ${booking.serviceName || "Not identified yet"}
 ${icons.date} Requested date: ${booking.preferredDate || "Not captured yet"}
 ${icons.time} Requested time: ${booking.preferredTime || "Not captured yet"}
 ${icons.status} Status: ${booking.bookingStatus}
-${icons.status} Lifecycle: ${booking.lifecycleStatus || "Not started"}
 ${icons.human} Attendance: ${booking.attendanceStatus}
 ${icons.urgency} Urgency: ${booking.urgency}
 
