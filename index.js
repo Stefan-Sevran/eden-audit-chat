@@ -3251,6 +3251,15 @@ async function saveBookingToGoogleSheets(sessionId) {
       ? "Email"
       : "");
 
+  const bookingRecordId = getBookingRecordId(
+    sessionId,
+    booking
+  );
+
+  if (!bookingRecordId) {
+    return;
+  }
+  
   try {
     const response = await fetch(intakeUrl, {
       method: "POST",
