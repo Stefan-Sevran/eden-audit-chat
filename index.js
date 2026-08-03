@@ -3281,7 +3281,7 @@ async function maybeSendHumanHandoffAlert(sessionId, latestUserText) {
 
   if (now - lastAlertAt < HUMAN_HANDOFF_COOLDOWN_MS) return;
 
-  const clinicId = sessionClinicId[sessionId] || 'pearlsmile';
+  const clinicId = sessionClinicId[sessionId] || "pearlsmile";
   const clinic = getClinicConfig(clinicId);
   if (!clinic) return;
 
@@ -3289,29 +3289,50 @@ async function maybeSendHumanHandoffAlert(sessionId, latestUserText) {
   if (!telegramChatId) return;
 
   const booking = ensurePatientBooking(sessionId, clinicId);
+
+  const icons = {
+    alert: "\u{1F6A8}",
+    lead: "\u{1F194}",
+    patient: "\u{1F464}",
+    phone: "\u{1F4F1}",
+    message: "\u{1F4AC}",
+    dental: "\u{1F9B7}",
+    action: "\u26A1",
+    link: "\u{1F517}"
+  };
+
   const message = [
-    'ðŸš¨ HUMAN FOLLOW-UP REQUEST â€” ' + clinic.clinicName.toUpperCase(),
-    '',
-    'ðŸ†” Lead: ' + (booking.leadId || sessionId),
-    'ðŸ‘¤ Patient: ' + (booking.patientName || 'Not captured yet'),
-    'ðŸ“± Phone: ' + (booking.phone || 'Not captured yet'),
-    'ðŸ’¬ WhatsApp: ' + (booking.whatsapp || 'Not captured yet'),
-    'ðŸ¦· Service: ' + (booking.serviceId || 'Not confirmed yet'),
-    '⚡ Action: Open the inbox and click “Take over from AI”.',
-'This pauses Nida until your team returns the chat to AI.',
-'🔗 Inbox: https://eden-audit-chat.onrender.com/live-inbox',
-    '',
-    'ðŸ’¬ Latest patient message:',
-    String(latestUserText || '').trim(),
-    '',
-    'ðŸ”— Channel: Website AI booking chat',
-    'Session: ' + sessionId
-  ].join('\n');
+    icons.alert + " HUMAN FOLLOW-UP REQUEST — " +
+      clinic.clinicName.toUpperCase(),
+    "",
+    icons.lead + " Lead: " + (booking.leadId || sessionId),
+    icons.patient + " Patient: " +
+      (booking.patientName || "Not captured yet"),
+    icons.phone + " Phone: " +
+      (booking.phone || "Not captured yet"),
+    icons.message + " WhatsApp: " +
+      (booking.whatsapp || "Not captured yet"),
+    icons.dental + " Service: " +
+      (booking.serviceId || "Not confirmed yet"),
+    icons.action + " Action: Open the inbox and click “Take over from AI”.",
+    "This pauses Nida until your team returns the chat to AI.",
+    icons.link + " Inbox: https://eden-audit-chat.onrender.com/live-inbox",
+    "",
+    icons.message + " Latest patient message:",
+    String(latestUserText || "").trim(),
+    "",
+    icons.link + " Channel: Website AI booking chat",
+    "Session: " + sessionId
+  ].join("\n");
 
   await sendTelegramTo(telegramChatId, message);
   humanHandoffLastAlertAt[sessionId] = now;
 
-  console.log('Human handoff alert sent:', clinic.clinicName, sessionId);
+  console.log(
+    "Human handoff alert sent:",
+    clinic.clinicName,
+    sessionId
+  );
 }
 
 async function maybeSendBookingAlert(sessionId, latestUserText) {
