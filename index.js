@@ -1051,13 +1051,80 @@ async function getLiveServicePrices(clinic) {
 async function getClinicWithLiveServicePrices(clinic) {
   const prices = await getLiveServicePrices(clinic);
 
+  function normalisePriceLabel(value) {
+    return String(value || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /*
+    Standard dental labels used by clinic-facing price sheets.
+    A new clinic can also add service.priceLabels later if needed.
+  */
+  const standardPriceLabels = {
+    smile_assessment: [
+      "Dental Consultation",
+      "General Consultation",
+      "Check-up"
+    ],
+    scaling_polishing: [
+      "Teeth Cleaning",
+      "Scaling & Polishing"
+    ],
+    teeth_whitening: [
+      "Teeth Whitening"
+    ],
+    veneers_consultation: [
+      "Veneers Consultation",
+      "Smile Makeover Consultation"
+    ],
+    orthodontics_consultation: [
+      "Braces Consultation",
+      "Clear Aligner Consultation"
+    ],
+    implant_consultation: [
+      "Implant Consultation",
+      "Dental Implant Consultation"
+    ],
+    emergency_dental: [
+      "Emergency / Tooth Pain",
+      "Emergency Dental Assessment"
+    ]
+  };
+
+  const pricesByKey = {};
+
+  Object.keys(prices || {}).forEach(function(label) {
+    pricesByKey[normalisePriceLabel(label)] = prices[label];
+  });
+
   return {
     ...clinic,
 
     services: (clinic.services || []).map(function(service) {
-      const liveValue = Number(prices[service.name]);
+      const labelsToCheck = [
+        service.name
+      ]
+        .concat(service.priceLabels || [])
+        .concat(standardPriceLabels[service.id] || []);
 
-      if (!Number.isFinite(liveValue) || liveValue <= 0) {
+      let liveValue = null;
+
+      for (const label of labelsToCheck) {
+        const candidate = Number(
+          pricesByKey[normalisePriceLabel(label)]
+        );
+
+        if (Number.isFinite(candidate) && candidate > 0) {
+          liveValue = candidate;
+          break;
+        }
+      }
+
+      if (!liveValue) {
         return service;
       }
 
