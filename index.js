@@ -989,7 +989,117 @@ function getClinicName(clinicId) {
   return CLINICS[clinicId]?.clinicName || "Unknown clinic";
 }
 
+// =========================================================
+// LIVE CLINIC SERVICE PRICES
+// Reads each clinic's own Service Prices tab.
+// Staff can change prices in Google Sheets — no GitHub edits.
+// =========================================================
 
+const liveServicePriceCache = {};
+const LIVE_PRICE_CACHE_MS = 60 * 1000;
+
+async function getLiveServicePrices(clinic) {
+  const intakeUrl = clinic.googleSheets?.intakeUrl;
+
+  if (!intakeUrl) {
+    return {};
+  }
+
+  const cacheKey = clinic.clinicId;
+  const cached = liveServicePriceCache[cacheKey];
+
+  if (
+    cached &&
+    Date.now() - cached.loadedAt < LIVE_PRICE_CACHE_MS
+  ) {
+    return cached.prices;
+  }
+
+  try {
+    const separator = intakeUrl.includes("?") ? "&" : "?";
+
+    const response = await fetch(
+      intakeUrl + separator + "action=prices"
+    );
+
+    if (!response.ok) {
+      throw new Error("Price catalogue request failed");
+    }
+
+    const data = await response.json();
+    const prices = data?.success && data?.prices
+      ? data.prices
+      : {};
+
+    liveServicePriceCache[cacheKey] = {
+      loadedAt: Date.now(),
+      prices: prices
+    };
+
+    return prices;
+  } catch (error) {
+    console.warn(
+      "Live service prices unavailable for:",
+      clinic.clinicName,
+      error.message
+    );
+
+    return {};
+  }
+}
+
+async function getClinicWithLiveServicePrices(clinic) {
+  const prices = await getLiveServicePrices(clinic);
+
+  return {
+    ...clinic,
+
+    services: (clinic.services || []).map(function(service) {
+      const liveValue = Number(prices[service.name]);
+
+      if (!Number.isFinite(liveValue) || liveValue <= 0) {
+        return service;
+      }
+
+      return {
+        ...service,
+        estimatedVisitValue: liveValue,
+        priceText:
+          "Standard clinic price: " +
+          clinic.currencySymbol +
+          liveValue.toLocaleString()
+      };
+    })
+  };
+}
+
+async function applyLiveServicePriceToBooking(
+  sessionId,
+  clinic
+) {
+  const booking = ensurePatientBooking(
+    sessionId,
+    clinic.clinicId
+  );
+
+  if (!booking.serviceId) {
+    return;
+  }
+
+  const liveClinic =
+    await getClinicWithLiveServicePrices(clinic);
+
+  const service = (liveClinic.services || []).find(
+    function(item) {
+      return item.id === booking.serviceId;
+    }
+  );
+
+  if (service && service.estimatedVisitValue > 0) {
+    booking.estimatedVisitValue =
+      service.estimatedVisitValue;
+  }
+}
 
 function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
   if (!patientBookings[sessionId]) {
