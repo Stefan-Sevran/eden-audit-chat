@@ -4154,6 +4154,14 @@ app.post("/booking-chat", async (req, res) => {
       });
     }
 
+await applyLiveServicePriceToBooking(
+  sessionId,
+  clinic
+);
+
+const liveClinic =
+  await getClinicWithLiveServicePrices(clinic);
+    
     const needsHumanHandoff = patientNeedsHumanHelp(userText);
 
 const reply = needsHumanHandoff
