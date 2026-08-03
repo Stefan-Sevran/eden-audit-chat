@@ -3453,6 +3453,11 @@ async function maybeSendBookingAlert(sessionId, latestUserText) {
   updatePatientBookingHeuristically(sessionId, clinicId, latestUserText);
 await extractPatientBookingWithAI(sessionId);
 
+await applyLiveServicePriceToBooking(
+  sessionId,
+  clinic
+);
+  
 await maybeSendHumanHandoffAlert(sessionId, latestUserText);
 
   const booking = ensurePatientBooking(sessionId, clinicId);
