@@ -1172,6 +1172,7 @@ function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
   if (!patientBookings[sessionId]) {
     patientBookings[sessionId] = {
       leadId: "",
+      bookingRecordId: "",
       clinicId,
       patientName: "",
       phone: "",
@@ -1207,6 +1208,36 @@ function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
   }
 
   return patientBookings[sessionId];
+}
+
+function getBookingRecordId(sessionId, booking) {
+  /*
+    Do not write an appointment row until Nida has both a date and time.
+    This avoids filling Clinic Actions with incomplete chat enquiries.
+  */
+  if (!booking.preferredDate || !booking.preferredTime) {
+    return "";
+  }
+
+  /*
+    Once created, this ID stays fixed while the patient changes details
+    or the clinic follows up. That means one appointment = one Sheet row.
+  */
+  if (!booking.bookingRecordId) {
+    const baseId =
+      booking.leadId ||
+      `BOOKING-${String(sessionId)
+        .replace(/[^a-zA-Z0-9]/g, "")
+        .slice(-12)
+        .toUpperCase()}`;
+
+    booking.bookingRecordId =
+      `${baseId}-APT-${Date.now()
+        .toString(36)
+        .toUpperCase()}`;
+  }
+
+  return booking.bookingRecordId;
 }
 
 
