@@ -3394,11 +3394,6 @@ async function saveBookingToGoogleSheets(sessionId) {
       ? "Email"
       : "");
 
-const booking = ensurePatientBooking(
-  sessionId,
-  clinicId
-);
-
 const bookingRecordId =
   ensureBookingRecordId(
     sessionId,
