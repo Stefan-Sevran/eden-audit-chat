@@ -1571,12 +1571,104 @@ function createBookingLeadId(clinic, sessionId) {
 }
 
 function findClinicService(clinic, text) {
-  const lower = String(text || "").toLowerCase();
+  const lower = String(text || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  return (clinic.services || []).find(service =>
-    [service.name, ...(service.aliases || [])]
-      .some(alias => lower.includes(String(alias).toLowerCase()))
-  ) || null;
+  const matches = [];
+
+  (clinic.services || []).forEach(function(service) {
+    const serviceName = String(service.name || "").toLowerCase();
+
+    const standardAliases = [];
+
+    if (
+      /cleaning|scaling|polishing/.test(serviceName)
+    ) {
+      standardAliases.push(
+        "cleaning",
+        "teeth cleaning",
+        "dental cleaning",
+        "scaling",
+        "polishing",
+        "scaling and polishing",
+        "scaling & polishing"
+      );
+    }
+
+    if (/whitening/.test(serviceName)) {
+      standardAliases.push(
+        "whitening",
+        "teeth whitening",
+        "tooth whitening"
+      );
+    }
+
+    if (/braces|aligner|orthodont/.test(serviceName)) {
+      standardAliases.push(
+        "braces",
+        "clear aligners",
+        "clear aligner",
+        "invisalign",
+        "orthodontics",
+        "orthodontic consultation"
+      );
+    }
+
+    if (/implant/.test(serviceName)) {
+      standardAliases.push(
+        "implant",
+        "implants",
+        "dental implant",
+        "dental implants"
+      );
+    }
+
+    const aliases = [
+      service.name,
+      ...(service.aliases || []),
+      ...standardAliases
+    ]
+      .map(function(alias) {
+        return String(alias || "")
+          .toLowerCase()
+          .replace(/&/g, " and ")
+          .replace(/\s+/g, " ")
+          .trim();
+      })
+      .filter(function(alias) {
+        return alias.length >= 4;
+      });
+
+    aliases.forEach(function(alias) {
+      const escapedAlias = alias.replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+      );
+
+      if (
+        new RegExp(
+          "(^|\\b)" + escapedAlias + "(\\b|$)",
+          "i"
+        ).test(lower)
+      ) {
+        matches.push({
+          service,
+          score: alias.length
+        });
+      }
+    });
+  });
+
+  matches.sort(function(a, b) {
+    return b.score - a.score;
+  });
+
+  return matches.length
+    ? matches[0].service
+    : null;
 }
 
 
