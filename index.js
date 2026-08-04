@@ -1772,10 +1772,6 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   booking.updatedAt = new Date().toISOString();
 }
 
-  refreshBookingFollowUpPlan(booking, clinic);
-  booking.updatedAt = new Date().toISOString();
-}
-
 function findLatestExplicitPatientTime(sessionId) {
   const userMessages = (sessions[sessionId] || [])
     .filter(message => message.role === "user")
