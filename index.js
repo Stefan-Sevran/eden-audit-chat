@@ -1584,27 +1584,88 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   const clinic = getClinicConfig(clinicId);
   if (!clinic) return;
 
-  const booking = ensurePatientBooking(sessionId, clinicId);
   const source = String(text || "");
   const lower = source.toLowerCase();
+
+  let booking = ensurePatientBooking(sessionId, clinicId);
+
+  const isAdditionalAppointment =
+    /\b(?:also|another|second)\b/i.test(source) &&
+    booking.serviceName &&
+    booking.preferredDate &&
+    booking.preferredTime;
+
+  /*
+    “I’d also like teeth whitening tomorrow at 4 PM”
+    becomes a new booking, while retaining the visitor’s
+    already captured name and contact details.
+  */
+  if (isAdditionalAppointment) {
+    patientBookings[sessionId] = {
+      ...booking,
+
+      leadId: "",
+      bookingRecordId: "",
+      bookingRecordSignature: "",
+
+      serviceId: "",
+      serviceName: "",
+      estimatedVisitValue: 0,
+      potentialServiceName: "",
+      potentialServiceValueMin: 0,
+      potentialServiceValueMax: 0,
+
+      preferredDate: "",
+      preferredTime: "",
+
+      bookingStatus: "NEW",
+      lifecycleStatus: "",
+      reminderStatus: "PENDING_CLINIC_CONFIRMATION",
+      reminderDueAt: "",
+      attendanceCheckDueAt: "",
+      attendanceStatus: "ATTENDANCE_UNVERIFIED",
+      treatmentDecisionCheckDueAt: "",
+
+      humanFollowUpNeeded: false,
+      humanTeamUsed: false,
+      urgency: "NORMAL",
+
+      lastPatientReply: "",
+      reminderMessage: "",
+      attendanceMessage: "",
+      summary: "",
+
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    booking = ensurePatientBooking(sessionId, clinicId);
+  }
 
   if (!booking.leadId) {
     booking.leadId = createBookingLeadId(clinic, sessionId);
   }
 
   const email = source.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+
   if (email) {
     booking.email = email[0].replace(/[),.;]+$/g, "");
+
     if (!booking.preferredContactMethod) {
       booking.preferredContactMethod = "Email";
     }
   }
 
   const phone = source.match(/(\+?\d[\d\s().-]{7,}\d)/);
+
   if (phone) {
     const number = phone[0].trim();
-    const mentionsWhatsApp = /\b(whatsapp|what'?s\s*app|wa)\b/i.test(source);
-    const mentionsPhone = /\b(phone|mobile|call|telephone|contact number)\b/i.test(source);
+
+    const mentionsWhatsApp =
+      /\b(whatsapp|what'?s\s*app|wa)\b/i.test(source);
+
+    const mentionsPhone =
+      /\b(phone|mobile|call|telephone|contact number)\b/i.test(source);
 
     if (mentionsWhatsApp) {
       booking.whatsapp = number;
@@ -1612,6 +1673,7 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
       booking.preferredContactMethod = "WhatsApp";
     } else {
       booking.phone = number;
+
       if (mentionsPhone || !booking.preferredContactMethod) {
         booking.preferredContactMethod = "Phone";
       }
@@ -1620,15 +1682,19 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
 
   if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?email\b/i.test(source)) {
     booking.preferredContactMethod = "Email";
-  } else if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?whatsapp\b/i.test(source)) {
+  } else if (
+    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?whatsapp\b/i.test(source)
+  ) {
     booking.preferredContactMethod = "WhatsApp";
-  } else if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?(?:phone|call)\b/i.test(source)) {
+  } else if (
+    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?(?:phone|call)\b/i.test(source)
+  ) {
     booking.preferredContactMethod = "Phone";
   }
 
   const nameMatch = source.match(
-  /(?:my name is|i am|i'm|this is)\s+([\p{L}' -]{2,40})/iu
-);
+    /(?:my name is|i am|i'm|this is)\s+([\p{L}' -]{2,40})/iu
+  );
 
   if (nameMatch) {
     booking.patientName = nameMatch[1]
@@ -1637,21 +1703,27 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   }
 
   const service = findClinicService(clinic, source);
+
   if (service) {
     booking.serviceId = service.id;
     booking.serviceName = service.name;
     booking.estimatedVisitValue =
       service.estimatedVisitValue ||
       clinic.commercialModel.defaultVisitValue;
-    booking.potentialServiceName = service.potentialServiceName || "";
-    booking.potentialServiceValueMin = service.potentialServiceValueMin || 0;
-    booking.potentialServiceValueMax = service.potentialServiceValueMax || 0;
-    booking.urgency = service.urgent ? "URGENT" : booking.urgency;
+    booking.potentialServiceName =
+      service.potentialServiceName || "";
+    booking.potentialServiceValueMin =
+      service.potentialServiceValueMin || 0;
+    booking.potentialServiceValueMax =
+      service.potentialServiceValueMax || 0;
+    booking.urgency =
+      service.urgent ? "URGENT" : booking.urgency;
   }
 
   const timeMatch = source.match(
     /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i
   );
+
   if (timeMatch) {
     booking.preferredTime = timeMatch[0].toUpperCase();
   }
@@ -1671,7 +1743,7 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
     }
   }
 
-  if (/book|appointment|schedule|reserve|slot/i.test(source)) {
+  if (/\b(book|appointment|schedule|reserve|slot)\b/i.test(lower)) {
     booking.bookingStatus = "BOOKING_REQUESTED";
   }
 
@@ -1694,8 +1766,11 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
   ) {
     booking.bookingStatus = "AWAITING_CLINIC";
     booking.humanFollowUpNeeded = true;
-
   }
+
+  refreshBookingFollowUpPlan(booking, clinic);
+  booking.updatedAt = new Date().toISOString();
+}
 
   refreshBookingFollowUpPlan(booking, clinic);
   booking.updatedAt = new Date().toISOString();
