@@ -1168,12 +1168,17 @@ async function applyLiveServicePriceToBooking(
   }
 }
 
-function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
+function ensurePatientBooking(sessionId, clinicId = "") {
+  const resolvedClinicId =
+    clinicId ||
+    sessionClinicId[sessionId] ||
+    "";
+
   if (!patientBookings[sessionId]) {
     patientBookings[sessionId] = {
       leadId: "",
       bookingRecordId: "",
-      clinicId,
+      clinicId: resolvedClinicId,
       patientName: "",
       phone: "",
       whatsapp: "",
@@ -1205,6 +1210,10 @@ function ensurePatientBooking(sessionId, clinicId = "pearlsmile") {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+  }
+
+  if (!patientBookings[sessionId].clinicId) {
+    patientBookings[sessionId].clinicId = resolvedClinicId;
   }
 
   return patientBookings[sessionId];
