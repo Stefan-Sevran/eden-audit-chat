@@ -1219,6 +1219,68 @@ function ensurePatientBooking(sessionId, clinicId = "") {
   return patientBookings[sessionId];
 }
 
+function getBookingRecordSignature(booking) {
+  return [
+    booking.serviceId || booking.serviceName || "",
+    booking.preferredDate || "",
+    booking.preferredTime || ""
+  ]
+    .map(function(value) {
+      return String(value || "").trim().toLowerCase();
+    })
+    .join("|");
+}
+
+function stableBookingHash(value) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0)
+    .toString(36)
+    .toUpperCase();
+}
+
+function ensureBookingRecordId(sessionId, clinic) {
+  const booking = ensurePatientBooking(
+    sessionId,
+    clinic?.clinicId || ""
+  );
+
+  const signature = getBookingRecordSignature(booking);
+
+  if (
+    !booking.serviceName ||
+    !booking.preferredDate ||
+    !booking.preferredTime
+  ) {
+    return "";
+  }
+
+  if (booking.bookingRecordSignature !== signature) {
+    const datePart = booking.preferredDate
+      .replace(/-/g, "")
+      .slice(2);
+
+    const clinicCode =
+      clinic?.clinicCode ||
+      "BOOK";
+
+    booking.bookingRecordSignature = signature;
+
+    booking.bookingRecordId =
+      `${clinicCode}-${datePart}-` +
+      stableBookingHash(
+        `${sessionId}|${signature}`
+      ).slice(-6);
+  }
+
+  return booking.bookingRecordId;
+}
+
 function getBookingRecordId(sessionId, booking) {
   /*
     Do not write an appointment row until Nida has both a date and time.
