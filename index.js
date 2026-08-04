@@ -3203,8 +3203,9 @@ async function saveBookingToGoogleSheets(sessionId) {
         timestamp: new Date().toISOString(),
         created: booking.createdAt,
         updated: booking.updatedAt,
-        leadId:nbookingRecordId ||
-  booking.leadId,
+      leadId:
+        bookingRecordId ||
+        booking.leadId,
         sessionId,
         clinicId,
         clinic: clinic.clinicName,
