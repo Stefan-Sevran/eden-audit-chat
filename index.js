@@ -3798,8 +3798,8 @@ async function maybeSendBookingAlert(sessionId, latestUserText) {
   const clinic = getClinicConfig(clinicId);
   if (!clinic) return;
 
+  await extractPatientBookingWithAI(sessionId);
   updatePatientBookingHeuristically(sessionId, clinicId, latestUserText);
-await extractPatientBookingWithAI(sessionId);
 
 await applyLiveServicePriceToBooking(
   sessionId,
