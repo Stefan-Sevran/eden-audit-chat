@@ -586,7 +586,7 @@ receptionistStyle:
     clinicLabel: "Pattaya Smile Dental",
     channelLabel: "Website AI booking chat",
     intakeUrl:
-      "https://script.google.com/macros/s/AKfycby_9UvHenDdcahFUwfiMfFiOIjyxl9LWSYquhof3XdALHFd1hpbkD4eGhty8RsJ_aKH/exec"
+      "https://script.google.com/macros/s/AKfycbwLIihsBb6PYlAVksrHtysGWKr0lFPNg76vzGuDd2isizD_8RuCd4pwWoJ8xP--CNzWWw/exec"
   }
 };
 
