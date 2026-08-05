@@ -1254,8 +1254,6 @@ function ensureBookingRecordId(sessionId, clinic) {
     clinic?.clinicId || ""
   );
 
-  const signature = getBookingRecordSignature(booking);
-
   if (
     !booking.serviceName ||
     !booking.preferredDate ||
@@ -1264,7 +1262,12 @@ function ensureBookingRecordId(sessionId, clinic) {
     return "";
   }
 
-  if (booking.bookingRecordSignature !== signature) {
+  /*
+    Keep one permanent booking ID for this appointment.
+    Date/time changes update the existing Sheet row instead
+    of creating a second booking.
+  */
+  if (!booking.bookingRecordId) {
     const datePart = booking.preferredDate
       .replace(/-/g, "")
       .slice(2);
@@ -1273,12 +1276,10 @@ function ensureBookingRecordId(sessionId, clinic) {
       clinic?.clinicCode ||
       "BOOK";
 
-    booking.bookingRecordSignature = signature;
-
     booking.bookingRecordId =
       `${clinicCode}-${datePart}-` +
       stableBookingHash(
-        `${sessionId}|${signature}`
+        `${sessionId}|${booking.createdAt}`
       ).slice(-6);
   }
 
