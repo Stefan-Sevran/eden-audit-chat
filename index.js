@@ -847,6 +847,16 @@ APPOINTMENT-TIME RULES
 SERVICES AND PRICES
 ${formatClinicServices(clinic)}
 
+APPROVED CLINIC KNOWLEDGE
+${formatClinicKnowledge(knowledge)}
+
+KNOWLEDGE RULES
+- Treat APPROVED CLINIC KNOWLEDGE as the clinic-approved source of truth.
+- Use the approved public wording when answering patients.
+- Do not mention the Clinic KB, Google Sheets, approval status, or internal sources.
+- If approved knowledge conflicts with older hard-coded clinic information, follow the approved knowledge.
+- If the requested fact is absent, do not guess. Say the clinic team will confirm.
+
 BOOKING AND CLINIC POLICIES
 Same-day requests: ${clinic.bookingRules?.sameDayAllowed ? "Allowed when available" : "Not offered"}
 Clinic confirmation required: ${clinic.bookingRules?.confirmationRequired ? "Yes" : "No"}
