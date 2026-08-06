@@ -4603,6 +4603,9 @@ await applyLiveServicePriceToBooking(
 
 const liveClinic =
   await getClinicWithLiveServicePrices(clinic);
+
+    const liveKnowledge =
+  await getLiveClinicKnowledge(clinic);
     
     const needsHumanHandoff = patientNeedsHumanHelp(userText);
 
