@@ -790,6 +790,25 @@ function formatClinicServices(clinic) {
     .join("\n");
 }
 
+function formatClinicKnowledge(knowledge) {
+  const facts = knowledge?.facts || [];
+
+  if (!facts.length) {
+    return "No additional approved clinic facts are currently available.";
+  }
+
+  return facts
+    .map(function(fact) {
+      const wording =
+        fact.publicWording ||
+        fact.value ||
+        "";
+
+      return `- ${fact.category} / ${fact.field}: ${wording}`;
+    })
+    .join("\n");
+}
+
 function buildClinicBookingPrompt(clinic) {
   const hours = Object.entries(clinic.openingHours || {})
     .map(([day, value]) => `${day}: ${value}`)
