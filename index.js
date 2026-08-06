@@ -1048,37 +1048,48 @@ async function getLiveServicePrices(clinic) {
     return cached.prices;
   }
 
-  try {
-    const separator = intakeUrl.includes("?") ? "&" : "?";
+try {
+  const priceUrl =
+    clinic.googleSheets?.knowledgeUrl ||
+    clinic.googleSheets?.intakeUrl;
 
-    const response = await fetch(
-      intakeUrl + separator + "action=prices"
-    );
+  const separator = priceUrl.includes("?") ? "&" : "?";
 
-    if (!response.ok) {
-      throw new Error("Price catalogue request failed");
-    }
+  const response = await fetch(
+    priceUrl + separator + "action=prices"
+  );
 
-    const data = await response.json();
-    const prices = data?.success && data?.prices
+  if (!response.ok) {
+    throw new Error("Price catalogue request failed");
+  }
+
+  const data = await response.json();
+
+  const prices =
+    data?.success && data?.prices
       ? data.prices
       : {};
 
-    liveServicePriceCache[cacheKey] = {
-      loadedAt: Date.now(),
-      prices: prices
-    };
+  const services =
+    data?.success && Array.isArray(data?.services)
+      ? data.services
+      : [];
 
-    return prices;
-  } catch (error) {
-    console.warn(
-      "Live service prices unavailable for:",
-      clinic.clinicName,
-      error.message
-    );
+  liveServicePriceCache[cacheKey] = {
+    loadedAt: Date.now(),
+    prices: prices,
+    services: services
+  };
 
-    return {};
-  }
+  return prices;
+} catch (error) {
+  console.warn(
+    "Live service prices unavailable for:",
+    clinic.clinicName,
+    error.message
+  );
+
+  return {};
 }
 
 // =========================================================
