@@ -3898,6 +3898,9 @@ await applyLiveServicePriceToBooking(
 await maybeSendHumanHandoffAlert(sessionId, latestUserText);
 
   const booking = ensurePatientBooking(sessionId, clinicId);
+  if (!booking.preferredDate || !booking.preferredTime) {
+  return;
+}
   const bookingSignal =
     hasLeadSignal(latestUserText) ||
     /book|appointment|schedule|available|slot|cleaning|whitening|implant|braces|pain|consultation|tooth|dental/i.test(latestUserText);
