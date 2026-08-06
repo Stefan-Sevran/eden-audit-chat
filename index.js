@@ -809,7 +809,7 @@ function formatClinicKnowledge(knowledge) {
     .join("\n");
 }
 
-function buildClinicBookingPrompt(clinic) {
+function buildClinicBookingPrompt(clinic, knowledge = null) {
   const hours = Object.entries(clinic.openingHours || {})
     .map(([day, value]) => `${day}: ${value}`)
     .join("\n");
