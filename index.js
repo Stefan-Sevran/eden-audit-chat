@@ -1052,6 +1052,66 @@ async function getLiveServicePrices(clinic) {
   }
 }
 
+// =========================================================
+// LIVE CLINIC KNOWLEDGE
+// Reads approved facts from each clinic's Clinic KB tab.
+// =========================================================
+
+const liveClinicKnowledgeCache = {};
+const LIVE_KNOWLEDGE_CACHE_MS = 60 * 1000;
+
+async function getLiveClinicKnowledge(clinic) {
+  const knowledgeUrl = clinic.googleSheets?.knowledgeUrl;
+
+  if (!knowledgeUrl) {
+    return null;
+  }
+
+  const cacheKey = clinic.clinicId;
+  const cached = liveClinicKnowledgeCache[cacheKey];
+
+  if (
+    cached &&
+    Date.now() - cached.loadedAt < LIVE_KNOWLEDGE_CACHE_MS
+  ) {
+    return cached.knowledge;
+  }
+
+  try {
+    const separator = knowledgeUrl.includes("?") ? "&" : "?";
+
+    const response = await fetch(
+      knowledgeUrl + separator + "action=knowledge"
+    );
+
+    if (!response.ok) {
+      throw new Error("Clinic knowledge request failed");
+    }
+
+    const data = await response.json();
+
+    const knowledge =
+      data?.success && data?.knowledge
+        ? data.knowledge
+        : null;
+
+    liveClinicKnowledgeCache[cacheKey] = {
+      loadedAt: Date.now(),
+      knowledge: knowledge
+    };
+
+    return knowledge;
+  } catch (error) {
+    console.warn(
+      "Live clinic knowledge unavailable for:",
+      clinic.clinicName,
+      error.message
+    );
+
+    return null;
+  }
+}
+
 async function getClinicWithLiveServicePrices(clinic) {
   const prices = await getLiveServicePrices(clinic);
 
