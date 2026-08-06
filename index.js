@@ -4614,7 +4614,10 @@ const reply = needsHumanHandoff
   : await getAIReply(
       userText,
       sessionId,
-      buildClinicBookingPrompt(liveClinic)
+      buildClinicBookingPrompt(
+  liveClinic,
+  liveKnowledge
+)
     );
 
 if (needsHumanHandoff) {
