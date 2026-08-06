@@ -1296,6 +1296,67 @@ return {
   })
 };
 }
+    
+    let liveValue = null;
+
+    for (const label of labelsToCheck) {
+      const candidate = Number(
+        pricesByKey[normalisePriceLabel(label)]
+      );
+
+      if (Number.isFinite(candidate) && candidate > 0) {
+        liveValue = candidate;
+        break;
+      }
+    }
+
+    if (!liveValue && catalogueItem) {
+      const candidate = Number(
+        catalogueItem.suggestedValue ||
+        catalogueItem.minimumPrice
+      );
+
+      if (Number.isFinite(candidate) && candidate > 0) {
+        liveValue = candidate;
+      }
+    }
+
+    if (!liveValue && !catalogueItem) {
+      return service;
+    }
+
+    return {
+      ...service,
+
+      estimatedVisitValue:
+        liveValue || service.estimatedVisitValue,
+
+      priceType:
+        catalogueItem?.priceType || "Fixed",
+
+      minimumPrice:
+        catalogueItem?.minimumPrice || liveValue || 0,
+
+      maximumPrice:
+        catalogueItem?.maximumPrice || 0,
+
+      consultationFee:
+        catalogueItem?.consultationFee || 0,
+
+      priceAliases:
+        catalogueItem?.aliases || [],
+
+      priceText:
+        catalogueItem?.publicWording ||
+        (
+          "Standard clinic price: " +
+          clinic.currencySymbol +
+          Number(liveValue).toLocaleString()
+        )
+    };
+  })
+};
+}
 
 async function applyLiveServicePriceToBooking(
   sessionId,
