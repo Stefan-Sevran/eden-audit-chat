@@ -3895,7 +3895,7 @@ const HUMAN_HANDOFF_COOLDOWN_MS = 30 * 60 * 1000;
 function patientNeedsHumanHelp(latestUserText) {
   const text = String(latestUserText || '').toLowerCase();
 
-  return /\b(human|real person|live agent|talk (to|with) (a )?(person|human|staff|receptionist|team member)|speak (to|with) (a )?(person|human|staff|receptionist|team member)|call me|please call|urgent|emergency|help now)\b|à¸žà¸™à¸±à¸à¸‡à¸²à¸™|à¸„à¸™à¸ˆà¸£à¸´à¸‡|à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™|à¹à¸­à¸”à¸¡à¸´à¸™|à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆ|à¸”à¹ˆà¸§à¸™|à¸›à¸§à¸”à¸Ÿà¸±à¸™|à¸šà¸§à¸¡|à¹€à¸¥à¸·à¸­à¸”à¸­à¸­à¸/i.test(
+  return /\b(human|real person|live agent|talk (to|with) (a )?(person|human|staff|receptionist|team member)|speak (to|with) (a )?(person|human|staff|receptionist|team member)|call me|please call|urgent|help now)\b|à¸žà¸™à¸±à¸à¸‡à¸²à¸™|à¸„à¸™à¸ˆà¸£à¸´à¸‡|à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™|à¹à¸­à¸”à¸¡à¸´à¸™|à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆ|à¸”à¹ˆà¸§à¸™|à¸›à¸§à¸”à¸Ÿà¸±à¸™|à¸šà¸§à¸¡|à¹€à¸¥à¸·à¸­à¸”à¸­à¸­à¸/i.test(
     text
   );
 }
