@@ -1091,7 +1091,8 @@ try {
 
   return {};
 }
-
+} 
+  
 // =========================================================
 // LIVE CLINIC KNOWLEDGE
 // Reads approved facts from each clinic's Clinic KB tab.
