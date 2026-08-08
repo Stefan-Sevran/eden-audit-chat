@@ -1164,35 +1164,37 @@ async function getClinicWithLiveServicePrices(clinic) {
       .trim();
   }
 
-  /*
-    Standard dental labels used by clinic-facing price sheets.
-    A new clinic can also add service.priceLabels later if needed.
-  */
   const standardPriceLabels = {
     smile_assessment: [
       "Dental Consultation",
       "General Consultation",
       "Check-up"
     ],
+
     scaling_polishing: [
       "Teeth Cleaning",
       "Scaling & Polishing"
     ],
+
     teeth_whitening: [
       "Teeth Whitening"
     ],
+
     veneers_consultation: [
       "Veneers Consultation",
       "Smile Makeover Consultation"
     ],
+
     orthodontics_consultation: [
       "Braces Consultation",
       "Clear Aligner Consultation"
     ],
+
     implant_consultation: [
       "Implant Consultation",
       "Dental Implant Consultation"
     ],
+
     emergency_dental: [
       "Emergency / Tooth Pain",
       "Emergency Dental Assessment"
@@ -1201,100 +1203,112 @@ async function getClinicWithLiveServicePrices(clinic) {
 
   const pricesByKey = {};
 
-Object.keys(prices || {}).forEach(function(label) {
-  pricesByKey[normalisePriceLabel(label)] = prices[label];
-});
+  Object.keys(prices || {}).forEach(function(label) {
+    pricesByKey[normalisePriceLabel(label)] = prices[label];
+  });
 
-const structuredServices =
-  liveServicePriceCache[clinic.clinicId]?.services || [];
+  const structuredServices =
+    liveServicePriceCache[clinic.clinicId]?.services || [];
 
-return {
-  ...clinic,
+  return {
+    ...clinic,
 
-  services: (clinic.services || []).map(function(service) {
-    const labelsToCheck = [
-      service.name
-    ]
-      .concat(service.priceLabels || [])
-      .concat(standardPriceLabels[service.id] || []);
+    services: (clinic.services || []).map(function(service) {
+      const labelsToCheck = [
+        service.name
+      ]
+        .concat(service.priceLabels || [])
+        .concat(standardPriceLabels[service.id] || []);
 
-    const normalisedLabels = labelsToCheck.map(
-      normalisePriceLabel
-    );
+      const normalisedLabels =
+        labelsToCheck.map(normalisePriceLabel);
 
-    const catalogueItem = structuredServices.find(
-      function(item) {
-        const catalogueLabels = [
-          item.service
-        ]
-          .concat(item.aliases || [])
-          .map(normalisePriceLabel);
+      const catalogueItem =
+        structuredServices.find(function(item) {
+          const catalogueLabels = [
+            item.service
+          ]
+            .concat(item.aliases || [])
+            .map(normalisePriceLabel);
 
-        return catalogueLabels.some(function(label) {
-          return normalisedLabels.includes(label);
+          return catalogueLabels.some(function(label) {
+            return normalisedLabels.includes(label);
+          });
         });
+
+      let liveValue = null;
+
+      for (const label of labelsToCheck) {
+        const candidate = Number(
+          pricesByKey[normalisePriceLabel(label)]
+        );
+
+        if (
+          Number.isFinite(candidate) &&
+          candidate > 0
+        ) {
+          liveValue = candidate;
+          break;
+        }
       }
-    );
 
-    let liveValue = null;
+      if (!liveValue && catalogueItem) {
+        const candidate = Number(
+          catalogueItem.suggestedValue ||
+          catalogueItem.minimumPrice
+        );
 
-    for (const label of labelsToCheck) {
-      const candidate = Number(
-        pricesByKey[normalisePriceLabel(label)]
-      );
-
-      if (Number.isFinite(candidate) && candidate > 0) {
-        liveValue = candidate;
-        break;
+        if (
+          Number.isFinite(candidate) &&
+          candidate > 0
+        ) {
+          liveValue = candidate;
+        }
       }
-    }
 
-    if (!liveValue && catalogueItem) {
-      const candidate = Number(
-        catalogueItem.suggestedValue ||
-        catalogueItem.minimumPrice
-      );
-
-      if (Number.isFinite(candidate) && candidate > 0) {
-        liveValue = candidate;
+      if (!liveValue && !catalogueItem) {
+        return service;
       }
-    }
 
-    if (!liveValue && !catalogueItem) {
-      return service;
-    }
-
-    return {
-      ...service,
-
-      estimatedVisitValue:
-        liveValue || service.estimatedVisitValue,
-
-      priceType:
-        catalogueItem?.priceType || "Fixed",
-
-      minimumPrice:
-        catalogueItem?.minimumPrice || liveValue || 0,
-
-      maximumPrice:
-        catalogueItem?.maximumPrice || 0,
-
-      consultationFee:
-        catalogueItem?.consultationFee || 0,
-
-      priceAliases:
-        catalogueItem?.aliases || [],
-
-      priceText:
-        catalogueItem?.publicWording ||
-        (
-          "Standard clinic price: " +
+      const fallbackPriceText = liveValue
+        ? "Standard clinic price: " +
           clinic.currencySymbol +
           Number(liveValue).toLocaleString()
-        )
-    };
-  })
-};
+        : service.priceText;
+
+      return {
+        ...service,
+
+        estimatedVisitValue:
+          liveValue || service.estimatedVisitValue,
+
+        priceType:
+          catalogueItem?.priceType ||
+          service.priceType ||
+          "Fixed",
+
+        minimumPrice:
+          Number(catalogueItem?.minimumPrice) ||
+          liveValue ||
+          0,
+
+        maximumPrice:
+          Number(catalogueItem?.maximumPrice) ||
+          0,
+
+        consultationFee:
+          Number(catalogueItem?.consultationFee) ||
+          0,
+
+        priceAliases:
+          catalogueItem?.aliases || [],
+
+        priceText:
+          catalogueItem?.publicWording ||
+          fallbackPriceText
+      };
+    })
+  };
 }
     
     let liveValue = null;
