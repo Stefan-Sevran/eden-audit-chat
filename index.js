@@ -3892,11 +3892,46 @@ function applyBookingFollowUpReply(booking, stage, rawReply) {
 const humanHandoffLastAlertAt = {};
 const HUMAN_HANDOFF_COOLDOWN_MS = 30 * 60 * 1000;
 
-function patientNeedsHumanHelp(latestUserText) {
-  const text = String(latestUserText || '').toLowerCase();
+function getHumanHandoffDecision(latestUserText) {
+  const text = String(latestUserText || "")
+    .toLowerCase()
+    .trim();
 
-  return /\b(human|real person|live agent|talk (to|with) (a )?(person|human|staff|receptionist|team member)|speak (to|with) (a )?(person|human|staff|receptionist|team member)|call me|please call|urgent|help now)\b|à¸žà¸™à¸±à¸à¸‡à¸²à¸™|à¸„à¸™à¸ˆà¸£à¸´à¸‡|à¸„à¸¸à¸¢à¸à¸±à¸šà¸„à¸™|à¹à¸­à¸”à¸¡à¸´à¸™|à¹€à¸ˆà¹‰à¸²à¸«à¸™à¹‰à¸²à¸—à¸µà¹ˆ|à¸”à¹ˆà¸§à¸™|à¸›à¸§à¸”à¸Ÿà¸±à¸™|à¸šà¸§à¸¡|à¹€à¸¥à¸·à¸­à¸”à¸­à¸­à¸/i.test(
-    text
+  /*
+    IMMEDIATE:
+    The patient clearly asks for a human or asks to be contacted.
+  */
+  const explicitHumanRequest =
+    /\b(human|real person|live agent|talk (to|with) (a )?(person|human|staff|receptionist|team member)|speak (to|with) (a )?(person|human|staff|receptionist|team member)|call me|please call)\b/i;
+
+  if (explicitHumanRequest.test(text)) {
+    return "immediate";
+  }
+
+  /*
+    OFFER:
+    The wording suggests urgency, frustration or uncertainty,
+    but Nida should first understand what the patient needs.
+  */
+  const possibleHumanNeed =
+    /\b(urgent|help now|need help|i need help|worried|very worried|scared|frustrated|confused|upset|someone help|need assistance)\b/i;
+
+  if (possibleHumanNeed.test(text)) {
+    return "offer";
+  }
+
+  return "continue";
+}
+
+/*
+  Temporary compatibility wrapper.
+  Existing code will still work while we upgrade
+  the booking-chat route in the next step.
+*/
+function patientNeedsHumanHelp(latestUserText) {
+  return (
+    getHumanHandoffDecision(latestUserText) ===
+    "immediate"
   );
 }
 
