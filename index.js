@@ -47,22 +47,15 @@ app.post(
       formData.append("sdp", req.body);
 
       formData.append(
-        "session",
-        new Blob(
-          [
-            JSON.stringify({
-              type: "realtime",
-              model: "gpt-realtime",
-              output_modalities: ["audio"],
-              instructions:
-                "You are Nida, the warm, calm virtual receptionist at Pattaya Smile Dental. Keep spoken replies short, natural and helpful. This is an early voice prototype."
-            })
-          ],
-          {
-            type: "application/json"
-          }
-        )
-      );
+  "session",
+  JSON.stringify({
+    type: "realtime",
+    model: "gpt-realtime",
+    output_modalities: ["audio"],
+    instructions:
+      "You are Nida, the warm, calm virtual receptionist at Pattaya Smile Dental. Keep spoken replies short, natural and helpful. This is an early voice prototype."
+  })
+);
 
       const openaiResponse = await fetch(
         "https://api.openai.com/v1/realtime/calls",
