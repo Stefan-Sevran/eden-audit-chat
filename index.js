@@ -31,6 +31,82 @@ const sessionClinicId = {};
 const bookingAlertSnapshots = {};
 const patientBookings = {};
 
+app.post(
+  "/realtime-call",
+  express.text({ type: "application/sdp" }),
+  async function (req, res) {
+    try {
+      if (!OPENAI_API_KEY) {
+        return res.status(500).send(
+          "OPENAI_API_KEY is not configured"
+        );
+      }
+
+      const formData = new FormData();
+
+      formData.append("sdp", req.body);
+
+      formData.append(
+        "session",
+        new Blob(
+          [
+            JSON.stringify({
+              type: "realtime",
+              model: "gpt-realtime",
+              output_modalities: ["audio"],
+              instructions:
+                "You are Nida, the warm, calm virtual receptionist at Pattaya Smile Dental. Keep spoken replies short, natural and helpful. This is an early voice prototype."
+            })
+          ],
+          {
+            type: "application/json"
+          }
+        )
+      );
+
+      const openaiResponse = await fetch(
+        "https://api.openai.com/v1/realtime/calls",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              "Bearer " + OPENAI_API_KEY
+          },
+          body: formData
+        }
+      );
+
+      const responseText =
+        await openaiResponse.text();
+
+      if (!openaiResponse.ok) {
+        console.error(
+          "Realtime call failed:",
+          responseText
+        );
+
+        return res
+          .status(openaiResponse.status)
+          .send(responseText);
+      }
+
+      res
+        .status(201)
+        .type("application/sdp")
+        .send(responseText);
+    } catch (error) {
+      console.error(
+        "Realtime call route error:",
+        error
+      );
+
+      res.status(500).send(
+        "Could not start realtime voice call"
+      );
+    }
+  }
+);
+
 /*
   LIVE HUMAN INBOX
 
