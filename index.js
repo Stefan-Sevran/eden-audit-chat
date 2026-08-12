@@ -3396,7 +3396,6 @@ async function extractPatientBookingWithAI(sessionId) {
       "phone",
       "whatsapp",
       "email",
-      "preferredTime",
       "summary"
     ]) {
       if (
