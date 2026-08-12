@@ -873,6 +873,8 @@ KNOWLEDGE RULES
 - Do not mention the Clinic KB, Google Sheets, approval status, or internal sources.
 - If approved knowledge conflicts with older hard-coded clinic information, follow the approved knowledge.
 - If the requested fact is absent, do not guess. Say the clinic team will confirm.
+- Never weaken or make a Clinic KB policy more absolute than its approved public wording.
+- When a Clinic KB policy exists, do not combine it with conflicting or broader fallback wording.
 
 BOOKING AND CLINIC POLICIES
 
@@ -890,8 +892,8 @@ If an approved fact is not available, use these fallback defaults:
 
 Same-day requests: ${clinic.bookingRules?.sameDayAllowed ? "Allowed when available" : "Not offered"}
 Clinic confirmation required: ${clinic.bookingRules?.confirmationRequired ? "Yes" : "No"}
-Deposit required: ${clinic.bookingRules?.depositRequired ? "Yes" : "No"}
-Cancellation notice: ${clinic.bookingRules?.cancellationNoticeHours || 24} hours
+Deposit fallback: If no approved Clinic KB deposit policy is available, ask the clinic team to confirm.
+Insurance fallback: If no approved Clinic KB insurance policy is available, ask the clinic team to confirm.
 Late arrival guidance: Please alert the clinic if more than ${clinic.bookingRules?.lateArrivalMinutes || 15} minutes late.
 Insurance: ${clinic.insurancePolicy}
 Payment methods: ${(clinic.paymentMethods || []).join(", ")}
