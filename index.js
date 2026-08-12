@@ -48,13 +48,20 @@ app.post(
 
       formData.append(
   "session",
-  JSON.stringify({
-    type: "realtime",
-    model: "gpt-realtime",
-    output_modalities: ["audio"],
-    instructions:
-      "You are Nida, the warm, calm virtual receptionist at Pattaya Smile Dental. Keep spoken replies short, natural and helpful. This is an early voice prototype."
-  })
+JSON.stringify({
+  type: "realtime",
+  model: "gpt-realtime",
+  output_modalities: ["audio"],
+
+  audio: {
+    output: {
+      voice: "marin"
+    }
+  },
+
+  instructions:
+    "You are Nida, the warm, calm female virtual receptionist at Pattaya Smile Dental. Speak English by default. If the patient speaks Thai, you may respond in Thai. If the patient switches back to English, switch back to English. Keep spoken replies short, natural, warm and helpful. Do not invent clinic facts. This is an early voice prototype."
+})
 );
 
       const openaiResponse = await fetch(
