@@ -1352,9 +1352,44 @@ async function applyLiveServicePriceToBooking(
     }
   );
 
-  if (service && service.estimatedVisitValue > 0) {
+  if (!service) {
+    return;
+  }
+
+  if (
+    Number.isFinite(Number(service.estimatedVisitValue)) &&
+    Number(service.estimatedVisitValue) > 0
+  ) {
     booking.estimatedVisitValue =
-      service.estimatedVisitValue;
+      Number(service.estimatedVisitValue);
+  }
+
+  /*
+    Live structured catalogue overrides old hard-coded
+    potential treatment values when available.
+  */
+  if (
+    Number.isFinite(Number(service.minimumPrice)) &&
+    Number(service.minimumPrice) > 0
+  ) {
+    booking.potentialServiceValueMin =
+      Number(service.minimumPrice);
+  }
+
+  if (
+    Number.isFinite(Number(service.maximumPrice)) &&
+    Number(service.maximumPrice) > 0
+  ) {
+    booking.potentialServiceValueMax =
+      Number(service.maximumPrice);
+  }
+
+  if (service.priceText) {
+    booking.livePriceText = service.priceText;
+  }
+
+  if (service.priceType) {
+    booking.livePriceType = service.priceType;
   }
 }
 
