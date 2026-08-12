@@ -575,7 +575,7 @@ receptionistStyle:
   ],
 
   insurancePolicy:
-    "Many major dental insurance plans may be accepted. Coverage and network status must always be confirmed by the clinic before treatment.",
+    "Insurance details must be confirmed by the clinic team.",
 
   telegram: {
     bookingChatId:
