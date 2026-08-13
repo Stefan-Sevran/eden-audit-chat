@@ -91,17 +91,17 @@ VOICE CONVERSATION RULES
   })
 );
 
-      const openaiResponse = await fetch(
-        "https://api.openai.com/v1/realtime/calls",
-        {
-          method: "POST",
-          headers: {
-            Authorization:
-              "Bearer " + OPENAI_API_KEY
-          },
-          body: formData
-        }
-      );
+const openaiResponse = await fetch(
+  "https://api.openai.com/v1/realtime/calls",
+  {
+    method: "POST",
+    headers: {
+      Authorization:
+        "Bearer " + OPENAI_API_KEY
+    },
+    body: formData
+  }
+);
 
       const responseText =
         await openaiResponse.text();
