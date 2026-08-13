@@ -42,6 +42,21 @@ app.post(
         );
       }
 
+const clinic =
+  getClinicConfig("pattaya-smile");
+
+const liveClinic =
+  await getClinicWithLiveServicePrices(clinic);
+
+const liveKnowledge =
+  await getLiveClinicKnowledge(clinic);
+
+const voiceClinicPrompt =
+  buildClinicBookingPrompt(
+    liveClinic,
+    liveKnowledge
+  );
+      
       const formData = new FormData();
 
       formData.append("sdp", req.body);
