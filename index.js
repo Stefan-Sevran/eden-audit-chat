@@ -68,6 +68,65 @@ formData.append(
     model: "gpt-realtime",
     output_modalities: ["audio"],
 
+tools: [
+  {
+    type: "function",
+    name: "create_patient_booking",
+    description:
+      "Use this when the patient has clearly provided enough information to request a dental appointment. Do not invent missing details. The clinic will confirm the appointment.",
+
+    parameters: {
+      type: "object",
+
+      properties: {
+        patientName: {
+          type: "string",
+          description: "Patient's name"
+        },
+
+        phone: {
+          type: "string",
+          description: "Patient's phone number if provided"
+        },
+
+        whatsapp: {
+          type: "string",
+          description: "Patient's WhatsApp number if provided"
+        },
+
+        email: {
+          type: "string",
+          description: "Patient's email address if provided"
+        },
+
+        service: {
+          type: "string",
+          description: "Dental service or reason for visit"
+        },
+
+        requestedDate: {
+          type: "string",
+          description: "Requested appointment date"
+        },
+
+        requestedTime: {
+          type: "string",
+          description: "Requested appointment time"
+        }
+      },
+
+      required: [
+        "patientName",
+        "service",
+        "requestedDate",
+        "requestedTime"
+      ]
+    }
+  }
+],
+
+tool_choice: "auto",
+    
     audio: {
       output: {
         voice: "marin"
