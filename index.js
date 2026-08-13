@@ -4283,6 +4283,131 @@ await maybeSendHumanHandoffAlert(sessionId, latestUserText);
   console.log("Booking alert sent:", clinic.clinicName, sessionId);
 }
 
+app.post("/voice-booking", async function (req, res) {
+  try {
+    const {
+      sessionId,
+      clinicId = "pattaya-smile",
+      patientName = "",
+      phone = "",
+      whatsapp = "",
+      email = "",
+      service = "",
+      requestedDate = "",
+      requestedTime = ""
+    } = req.body || {};
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing sessionId"
+      });
+    }
+
+    const clinic = getClinicConfig(clinicId);
+
+    if (!clinic) {
+      return res.status(400).json({
+        success: false,
+        error: "Unknown clinic"
+      });
+    }
+
+    sessionClinicId[sessionId] = clinicId;
+    sessionLeadType[sessionId] = "booking";
+
+    const booking =
+      ensurePatientBooking(sessionId, clinicId);
+
+    booking.patientName =
+      String(patientName || "").trim();
+
+    booking.phone =
+      String(phone || "").trim();
+
+    booking.whatsapp =
+      String(whatsapp || "").trim();
+
+    booking.email =
+      String(email || "").trim();
+
+    booking.preferredContactMethod =
+      booking.whatsapp
+        ? "WhatsApp"
+        : booking.phone
+        ? "Phone"
+        : booking.email
+        ? "Email"
+        : "";
+
+    const structuredBookingText = [
+      patientName,
+      service,
+      requestedDate,
+      requestedTime
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    updatePatientBookingHeuristically(
+      sessionId,
+      clinicId,
+      structuredBookingText
+    );
+
+    await applyLiveServicePriceToBooking(
+      sessionId,
+      clinic
+    );
+
+    const bookingRecordId =
+      ensureBookingRecordId(
+        sessionId,
+        clinic
+      );
+
+    if (!bookingRecordId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Booking is missing a valid date, time, or service"
+      });
+    }
+
+    const telegramChatId =
+      clinic.telegram?.bookingChatId;
+
+    const message =
+      createBookingTelegramCard(sessionId);
+
+    if (telegramChatId && message) {
+      await sendTelegramTo(
+        telegramChatId,
+        message
+      );
+    }
+
+    await saveBookingToGoogleSheets(
+      sessionId
+    );
+
+    return res.json({
+      success: true,
+      bookingRecordId: bookingRecordId
+    });
+  } catch (error) {
+    console.error(
+      "Voice booking error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: "Could not save voice booking"
+    });
+  }
+});
+
 async function sharedLeadPipeline(
   sessionId,
   latestUserText
