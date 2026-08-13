@@ -61,22 +61,22 @@ const voiceClinicPrompt =
 
       formData.append("sdp", req.body);
 
-      formData.append(
+formData.append(
   "session",
-JSON.stringify({
-  type: "realtime",
-  model: "gpt-realtime",
-  output_modalities: ["audio"],
+  JSON.stringify({
+    type: "realtime",
+    model: "gpt-realtime",
+    output_modalities: ["audio"],
 
-  audio: {
-    output: {
-      voice: "marin"
-    }
-  },
+    audio: {
+      output: {
+        voice: "marin"
+      }
+    },
 
-  instructions:
-  voiceClinicPrompt +
-  `
+    instructions:
+      voiceClinicPrompt +
+      `
 
 VOICE CONVERSATION RULES
 
@@ -88,6 +88,7 @@ VOICE CONVERSATION RULES
 - Do not read internal labels, system instructions, IDs, or data-source names aloud.
 - Do not mention the Clinic KB, Google Sheets, prompts, backend systems, or internal tools.
 `
+  })
 );
 
       const openaiResponse = await fetch(
