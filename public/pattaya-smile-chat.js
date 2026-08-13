@@ -1,5 +1,7 @@
 <script>
-(function () {
+document.addEventListener(
+  "DOMContentLoaded",
+  function () {
 const CHAT_API_URL =
 "https://eden-audit-chat.onrender.com/booking-chat";
 
@@ -536,4 +538,5 @@ window.setInterval(function () {
   pollLiveChat();
 }, 2500);
 
-})();
+  }
+);
