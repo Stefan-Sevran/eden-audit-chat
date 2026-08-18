@@ -4232,6 +4232,107 @@ async function maybeSendHumanHandoffAlert(sessionId, latestUserText) {
   );
 }
 
+async function finalizePatientBooking(
+  sessionId,
+  clinic,
+  options = {}
+) {
+  const booking =
+    ensurePatientBooking(
+      sessionId,
+      clinic.clinicId
+    );
+
+  /*
+  A booking is not ready to submit until
+  the patient has supplied the core
+  appointment details.
+  */
+  if (
+    !booking.preferredDate ||
+    !booking.preferredTime
+  ) {
+    return {
+      success: false,
+      reason: "MISSING_DATE_OR_TIME"
+    };
+  }
+
+  const bookingRecordId =
+    ensureBookingRecordId(
+      sessionId,
+      clinic
+    );
+
+  if (!bookingRecordId) {
+    return {
+      success: false,
+      reason: "INVALID_BOOKING"
+    };
+  }
+
+  /*
+  Apply the clinic's current structured
+  pricing before creating alerts or records.
+  */
+  await applyLiveServicePriceToBooking(
+    sessionId,
+    clinic
+  );
+
+  const telegramChatId =
+    clinic.telegram?.bookingChatId;
+
+  const message =
+    createBookingTelegramCard(
+      sessionId
+    );
+
+  if (!telegramChatId) {
+    return {
+      success: false,
+      reason: "TELEGRAM_DESTINATION_MISSING",
+      bookingRecordId
+    };
+  }
+
+  if (!message) {
+    return {
+      success: false,
+      reason: "BOOKING_CARD_FAILED",
+      bookingRecordId
+    };
+  }
+
+  /*
+  Save the operational booking record.
+  */
+  await saveBookingToGoogleSheets(
+    sessionId
+  );
+
+  /*
+  Notify the clinic only after the booking
+  record has been prepared for persistence.
+  */
+  await sendTelegramTo(
+    telegramChatId,
+    message
+  );
+
+  console.log(
+    "Booking finalized:",
+    clinic.clinicName,
+    bookingRecordId,
+    sessionId
+  );
+
+  return {
+    success: true,
+    bookingRecordId
+  };
+}
+
 async function maybeSendBookingAlert(sessionId, latestUserText) {
   const clinicId = sessionClinicId[sessionId] || "pearlsmile";
   const clinic = getClinicConfig(clinicId);
