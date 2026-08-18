@@ -4288,78 +4288,12 @@ await maybeSendHumanHandoffAlert(sessionId, latestUserText);
   console.log("Booking alert sent:", clinic.clinicName, sessionId);
 }
 
-booking.phone =
-  normalizeThaiPhone(phone);
-
-function normalizeGenericPhone(value) {
-  return String(value || "").trim();
-}
-
-function normalizeThaiPhone(value) {
-  const raw = String(value || "").trim();
-
-  if (!raw) return "";
-
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    return "";
-  }
-
-  const digits = raw.replace(/\D/g, "");
-
-  if (digits.startsWith("66") && digits.length === 11) {
-    const local = digits.slice(2);
-
-    return (
-      "+66 " +
-      local.slice(0, 2) +
-      " " +
-      local.slice(2, 5) +
-      " " +
-      local.slice(5)
-    );
-  }
-
-  if (digits.startsWith("0") && digits.length === 10) {
-    const local = digits.slice(1);
-
-    return (
-      "+66 " +
-      local.slice(0, 2) +
-      " " +
-      local.slice(2, 5) +
-      " " +
-      local.slice(5)
-    );
-  }
-
-  if (digits.length === 9) {
-    return (
-      "+66 " +
-      digits.slice(0, 2) +
-      " " +
-      digits.slice(2, 5) +
-      " " +
-      digits.slice(5)
-    );
-  }
-
-  return raw;
-}
-
-function normalizePhoneForClinic(value, clinic) {
-  if (clinic?.countryCode === "TH") {
-    return normalizeThaiPhone(value);
-  }
-
-  return normalizeGenericPhone(value);
-}
-
 function normalizeGenericPhone(value) {
   const raw = String(value || "").trim();
 
   if (!raw) return "";
 
-  // Never accept an obvious appointment date as a phone number.
+  // Reject obvious appointment dates accidentally put in contact fields.
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
     return "";
   }
@@ -4373,15 +4307,15 @@ function normalizeThaiPhone(value) {
 
   if (!raw) return "";
 
-  // Reject obvious appointment dates/times.
+  // Reject obvious appointment dates accidentally put in contact fields.
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
     return "";
   }
 
-  // Keep digits only so spoken/formatted versions normalize consistently.
+  // Strip spaces, dashes, brackets, spoken-format punctuation, etc.
   const digits = raw.replace(/\D/g, "");
 
-  // Example:
+  // Thai international format:
   // +66 98 925 2310
   // 66 98 925 2310
   // 66989252310
@@ -4401,8 +4335,7 @@ function normalizeThaiPhone(value) {
     );
   }
 
-  // Example:
-  // 098 925 2310
+  // Thai domestic format:
   // 0989252310
   if (
     digits.startsWith("0") &&
@@ -4420,9 +4353,8 @@ function normalizeThaiPhone(value) {
     );
   }
 
-  // Example:
+  // Patient gives Thai mobile without the leading 0:
   // 989252310
-  // Patient omitted both 0 and +66.
   if (digits.length === 9) {
     return (
       "+66 " +
@@ -4434,8 +4366,7 @@ function normalizeThaiPhone(value) {
     );
   }
 
-  // Unexpected format:
-  // preserve it rather than inventing a number.
+  // Unknown format: preserve rather than invent.
   return raw;
 }
 
