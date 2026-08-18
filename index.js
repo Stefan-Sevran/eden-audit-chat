@@ -4376,17 +4376,29 @@ await maybeSendHumanHandoffAlert(sessionId, latestUserText);
 
   if (bookingAlertSnapshots[sessionId] === importantSnapshot) return;
 
-  const telegramChatId = clinic.telegram?.bookingChatId;
-  if (!telegramChatId) return;
+const result =
+  await finalizePatientBooking(
+    sessionId,
+    clinic
+  );
 
-  const message = createBookingTelegramCard(sessionId);
-  if (!message) return;
+if (!result.success) {
+  console.log(
+    "Booking not finalized:",
+    result.reason,
+    sessionId
+  );
+  return;
+}
 
-  await sendTelegramTo(telegramChatId, message);
-  bookingAlertSnapshots[sessionId] = importantSnapshot;
-  await saveBookingToGoogleSheets(sessionId);
+bookingAlertSnapshots[sessionId] =
+  importantSnapshot;
 
-  console.log("Booking alert sent:", clinic.clinicName, sessionId);
+console.log(
+  "Booking alert sent:",
+  clinic.clinicName,
+  sessionId
+);
 }
 
 function normalizeGenericPhone(value) {
