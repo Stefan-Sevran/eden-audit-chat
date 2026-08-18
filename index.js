@@ -4287,6 +4287,9 @@ await maybeSendHumanHandoffAlert(sessionId, latestUserText);
   console.log("Booking alert sent:", clinic.clinicName, sessionId);
 }
 
+booking.phone =
+  normalizeThaiPhone(phone);
+
 app.post("/voice-booking", async function (req, res) {
   try {
     const {
