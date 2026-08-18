@@ -4354,6 +4354,106 @@ function normalizePhoneForClinic(value, clinic) {
   return normalizeGenericPhone(value);
 }
 
+function normalizeGenericPhone(value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "";
+
+  // Never accept an obvious appointment date as a phone number.
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return "";
+  }
+
+  return raw;
+}
+
+
+function normalizeThaiPhone(value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "";
+
+  // Reject obvious appointment dates/times.
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return "";
+  }
+
+  // Keep digits only so spoken/formatted versions normalize consistently.
+  const digits = raw.replace(/\D/g, "");
+
+  // Example:
+  // +66 98 925 2310
+  // 66 98 925 2310
+  // 66989252310
+  if (
+    digits.startsWith("66") &&
+    digits.length === 11
+  ) {
+    const local = digits.slice(2);
+
+    return (
+      "+66 " +
+      local.slice(0, 2) +
+      " " +
+      local.slice(2, 5) +
+      " " +
+      local.slice(5)
+    );
+  }
+
+  // Example:
+  // 098 925 2310
+  // 0989252310
+  if (
+    digits.startsWith("0") &&
+    digits.length === 10
+  ) {
+    const local = digits.slice(1);
+
+    return (
+      "+66 " +
+      local.slice(0, 2) +
+      " " +
+      local.slice(2, 5) +
+      " " +
+      local.slice(5)
+    );
+  }
+
+  // Example:
+  // 989252310
+  // Patient omitted both 0 and +66.
+  if (digits.length === 9) {
+    return (
+      "+66 " +
+      digits.slice(0, 2) +
+      " " +
+      digits.slice(2, 5) +
+      " " +
+      digits.slice(5)
+    );
+  }
+
+  // Unexpected format:
+  // preserve it rather than inventing a number.
+  return raw;
+}
+
+
+function normalizePhoneForClinic(value, clinic) {
+  const countryCode =
+    String(clinic?.countryCode || "")
+      .trim()
+      .toUpperCase();
+
+  if (countryCode === "TH") {
+    return normalizeThaiPhone(value);
+  }
+
+  return normalizeGenericPhone(value);
+}
+
+
 app.post("/voice-booking", async function (req, res) {
   try {
     const {
@@ -4388,22 +4488,108 @@ app.post("/voice-booking", async function (req, res) {
     sessionLeadType[sessionId] = "booking";
 
     const booking =
-      ensurePatientBooking(sessionId, clinicId);
+      ensurePatientBooking(
+        sessionId,
+        clinicId
+      );
 
     booking.patientName =
       String(patientName || "").trim();
 
-    function normalizeThaiPhone(value) {
-  const raw = String(value || "").trim();
+    booking.phone =
+      normalizePhoneForClinic(
+        phone,
+        clinic
+      );
 
-  if (!raw) return "";
+    booking.whatsapp =
+      normalizePhoneForClinic(
+        whatsapp,
+        clinic
+      );
 
-  // Reject obvious appointment dates/times.
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    return "";
+    booking.email =
+      String(email || "").trim();
+
+    booking.preferredContactMethod =
+      booking.whatsapp
+        ? "WhatsApp"
+        : booking.phone
+        ? "Phone"
+        : booking.email
+        ? "Email"
+        : "";
+
+    const structuredBookingText = [
+      patientName,
+      service,
+      requestedDate,
+      requestedTime
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    updatePatientBookingHeuristically(
+      sessionId,
+      clinicId,
+      structuredBookingText
+    );
+
+    await applyLiveServicePriceToBooking(
+      sessionId,
+      clinic
+    );
+
+    const bookingRecordId =
+      ensureBookingRecordId(
+        sessionId,
+        clinic
+      );
+
+    if (!bookingRecordId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Booking is missing a valid date, time, or service"
+      });
+    }
+
+    const telegramChatId =
+      clinic.telegram?.bookingChatId;
+
+    const message =
+      createBookingTelegramCard(
+        sessionId
+      );
+
+    if (telegramChatId && message) {
+      await sendTelegramTo(
+        telegramChatId,
+        message
+      );
+    }
+
+    await saveBookingToGoogleSheets(
+      sessionId
+    );
+
+    return res.json({
+      success: true,
+      bookingRecordId: bookingRecordId
+    });
+  } catch (error) {
+    console.error(
+      "Voice booking error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        "Could not save voice booking"
+    });
   }
-
-  const digits = raw.replace(/\D/g, "");
+});
 
   // Thai international number already includes 66.
   // Example: 66989252310 -> +66 98 925 2310
