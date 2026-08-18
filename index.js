@@ -1671,6 +1671,18 @@ function ensureBookingRecordId(sessionId, clinic) {
     clinic?.clinicId || ""
   );
 
+/*
+  A create_patient_booking tool call represents
+  a new submitted appointment request.
+
+  Do not reuse a previously submitted appointment ID
+  just because the browser/session is the same.
+*/
+if (booking.bookingRecordId) {
+  booking.bookingRecordId = "";
+  booking.createdAt = new Date().toISOString();
+}
+  
   if (
     !booking.serviceName ||
     !booking.preferredDate ||
