@@ -4323,8 +4323,16 @@ app.post("/voice-booking", async function (req, res) {
     booking.patientName =
       String(patientName || "").trim();
 
-    booking.phone =
-      String(phone || "").trim();
+    const rawPhone =
+  String(phone || "").trim();
+
+const looksLikeDate =
+  /^\d{4}-\d{2}-\d{2}/.test(rawPhone);
+
+booking.phone =
+  looksLikeDate
+    ? ""
+    : rawPhone;
 
     booking.whatsapp =
       String(whatsapp || "").trim();
