@@ -4516,22 +4516,22 @@ function normalizePhoneForClinic(value, clinic) {
   return normalizeGenericPhone(value);
 }
 
-
 app.post("/voice-booking", async function (req, res) {
-const {
-  sessionId,
-  clinicId = "pattaya-smile",
+  try {
+    const {
+      sessionId,
+      clinicId = "pattaya-smile",
 
-  bookingAction = "update",
+      bookingAction = "update",
 
-  patientName = "",
-  phone = "",
-  whatsapp = "",
-  email = "",
-  service = "",
-  requestedDate = "",
-  requestedTime = ""
-} = req.body || {};
+      patientName = "",
+      phone = "",
+      whatsapp = "",
+      email = "",
+      service = "",
+      requestedDate = "",
+      requestedTime = ""
+    } = req.body || {};
 
     if (!sessionId) {
       return res.status(400).json({
