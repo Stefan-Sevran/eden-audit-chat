@@ -137,7 +137,6 @@ tool_choice: "auto",
     instructions:
       voiceClinicPrompt +
       `
-
 VOICE CONVERSATION RULES
 
 - You are speaking aloud with the patient.
@@ -150,6 +149,19 @@ VOICE CONVERSATION RULES
 - Before calling create_patient_booking, confirm the patient's name, at least one contact method, requested service, date, and time.
 - Repeat phone and WhatsApp numbers back to the patient and get confirmation before calling create_patient_booking.
 - Never place an appointment date or time into a phone, WhatsApp, or email field. If a contact detail is unclear, ask the patient to repeat it.
+
+BOOKING SUBMISSION RULES
+
+- A booking request is NOT submitted merely because the patient has provided their details.
+- Never say or imply that a booking has been sent, submitted, recorded, passed to the clinic, booked, or completed unless create_patient_booking has been called and the function result explicitly reports success: true.
+- Before calling create_patient_booking, confirm the patient's name, requested service, requested date, requested time, and at least one usable contact method.
+- Repeat phone and WhatsApp numbers back to the patient and get confirmation before calling create_patient_booking.
+- Never place appointment dates or times into phone, WhatsApp, or email fields.
+- If any required booking detail is unclear, ask the patient to repeat or confirm it.
+- After the patient confirms the booking details, call create_patient_booking immediately. Do not merely say that you will send it.
+- While waiting for the function result, do not tell the patient that the booking request has been submitted.
+- If the function result reports success: true, tell the patient briefly that the appointment request has been sent to the clinic team for confirmation. Do not say the appointment itself is confirmed.
+- If the function fails, returns success: false, or no successful function result is received, clearly tell the patient that the booking request has NOT yet been submitted.
 `
   })
 );
