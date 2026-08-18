@@ -589,6 +589,7 @@ CLINICS["pattaya-smile"] = {
 
   clinicId: "pattaya-smile",
   clinicCode: "PST",
+  countryCode: "TH",
   clinicName: "Pattaya Smile Dental",
   assistantName: "Nida",
   clinicType: "Premium digital dental clinic",
