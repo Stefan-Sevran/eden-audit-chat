@@ -123,6 +123,61 @@ tools: [
         "requestedTime"
       ]
     }
+  },
+
+  {
+    type: "function",
+    name: "update_patient_booking",
+    description:
+      "Use this only when the patient is changing details of an appointment request that has already been submitted in this same conversation. Examples: changing the date, time, service, name spelling, phone, WhatsApp, or email. Do not use this for a genuinely new second appointment.",
+
+    parameters: {
+      type: "object",
+
+      properties: {
+        patientName: {
+          type: "string",
+          description: "Patient's name"
+        },
+
+        phone: {
+          type: "string",
+          description: "Patient's phone number if provided"
+        },
+
+        whatsapp: {
+          type: "string",
+          description: "Patient's WhatsApp number if provided"
+        },
+
+        email: {
+          type: "string",
+          description: "Patient's email address if provided"
+        },
+
+        service: {
+          type: "string",
+          description: "Dental service or reason for visit"
+        },
+
+        requestedDate: {
+          type: "string",
+          description: "Requested appointment date"
+        },
+
+        requestedTime: {
+          type: "string",
+          description: "Requested appointment time"
+        }
+      },
+
+      required: [
+        "patientName",
+        "service",
+        "requestedDate",
+        "requestedTime"
+      ]
+    }
   }
 ],
 
@@ -162,6 +217,8 @@ BOOKING SUBMISSION RULES
 - While waiting for the function result, do not tell the patient that the booking request has been submitted.
 - If the function result reports success: true, tell the patient briefly that the appointment request has been sent to the clinic team for confirmation. Do not say the appointment itself is confirmed.
 - If the function fails, returns success: false, or no successful function result is received, clearly tell the patient that the booking request has NOT yet been submitted.
+- Use create_patient_booking for a new appointment request.
+- Use update_patient_booking only when changing an already-submitted appointment in the same conversation.
 `
   })
 );
