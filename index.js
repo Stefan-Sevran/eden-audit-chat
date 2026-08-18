@@ -3605,7 +3605,7 @@ const currencySymbol =
   return `
 ${isUpdate ? icons.updated + " UPDATED PATIENT BOOKING" : icons.booking + " NEW PATIENT BOOKING"} - ${clinic.clinicName.toUpperCase()}
 
-${icons.lead} Lead: ${booking.leadId}
+${icons.lead} Lead: ${booking.bookingRecordId || booking.leadId || sessionId}
 ${icons.patient} Patient: ${booking.patientName || "Not captured yet"}
 ${icons.contact} Phone: ${booking.phone || "Not captured yet"}
 ${icons.message} WhatsApp: ${booking.whatsapp || "Not captured yet"}
