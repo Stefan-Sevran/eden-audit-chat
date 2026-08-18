@@ -4312,12 +4312,9 @@ function normalizeThaiPhone(value) {
     return "";
   }
 
-  // Strip spaces, dashes, brackets, spoken-format punctuation, etc.
   const digits = raw.replace(/\D/g, "");
 
-  // Thai international format:
   // +66 98 925 2310
-  // 66 98 925 2310
   // 66989252310
   if (
     digits.startsWith("66") &&
@@ -4335,7 +4332,6 @@ function normalizeThaiPhone(value) {
     );
   }
 
-  // Thai domestic format:
   // 0989252310
   if (
     digits.startsWith("0") &&
@@ -4353,7 +4349,6 @@ function normalizeThaiPhone(value) {
     );
   }
 
-  // Patient gives Thai mobile without the leading 0:
   // 989252310
   if (digits.length === 9) {
     return (
@@ -4414,6 +4409,112 @@ app.post("/voice-booking", async function (req, res) {
         error: "Unknown clinic"
       });
     }
+
+    sessionClinicId[sessionId] = clinicId;
+    sessionLeadType[sessionId] = "booking";
+
+    const booking =
+      ensurePatientBooking(
+        sessionId,
+        clinicId
+      );
+
+    booking.patientName =
+      String(patientName || "").trim();
+
+    booking.phone =
+      normalizePhoneForClinic(
+        phone,
+        clinic
+      );
+
+    booking.whatsapp =
+      normalizePhoneForClinic(
+        whatsapp,
+        clinic
+      );
+
+    booking.email =
+      String(email || "").trim();
+
+    booking.preferredContactMethod =
+      booking.whatsapp
+        ? "WhatsApp"
+        : booking.phone
+        ? "Phone"
+        : booking.email
+        ? "Email"
+        : "";
+
+    const structuredBookingText = [
+      patientName,
+      service,
+      requestedDate,
+      requestedTime
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    updatePatientBookingHeuristically(
+      sessionId,
+      clinicId,
+      structuredBookingText
+    );
+
+    await applyLiveServicePriceToBooking(
+      sessionId,
+      clinic
+    );
+
+    const bookingRecordId =
+      ensureBookingRecordId(
+        sessionId,
+        clinic
+      );
+
+    if (!bookingRecordId) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Booking is missing a valid date, time, or service"
+      });
+    }
+
+    const telegramChatId =
+      clinic.telegram?.bookingChatId;
+
+    const message =
+      createBookingTelegramCard(
+        sessionId
+      );
+
+    if (telegramChatId && message) {
+      await sendTelegramTo(
+        telegramChatId,
+        message
+      );
+    }
+
+    await saveBookingToGoogleSheets(
+      sessionId
+    );
+
+    return res.json({
+      success: true,
+      bookingRecordId: bookingRecordId
+    });
+  } catch (error) {
+    console.error(
+      "Voice booking error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: "Could not save voice booking"
+    });
+  }
+});
 
     sessionClinicId[sessionId] = clinicId;
     sessionLeadType[sessionId] = "booking";
