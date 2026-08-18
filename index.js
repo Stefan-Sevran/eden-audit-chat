@@ -4291,6 +4291,69 @@ await maybeSendHumanHandoffAlert(sessionId, latestUserText);
 booking.phone =
   normalizeThaiPhone(phone);
 
+function normalizeGenericPhone(value) {
+  return String(value || "").trim();
+}
+
+function normalizeThaiPhone(value) {
+  const raw = String(value || "").trim();
+
+  if (!raw) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return "";
+  }
+
+  const digits = raw.replace(/\D/g, "");
+
+  if (digits.startsWith("66") && digits.length === 11) {
+    const local = digits.slice(2);
+
+    return (
+      "+66 " +
+      local.slice(0, 2) +
+      " " +
+      local.slice(2, 5) +
+      " " +
+      local.slice(5)
+    );
+  }
+
+  if (digits.startsWith("0") && digits.length === 10) {
+    const local = digits.slice(1);
+
+    return (
+      "+66 " +
+      local.slice(0, 2) +
+      " " +
+      local.slice(2, 5) +
+      " " +
+      local.slice(5)
+    );
+  }
+
+  if (digits.length === 9) {
+    return (
+      "+66 " +
+      digits.slice(0, 2) +
+      " " +
+      digits.slice(2, 5) +
+      " " +
+      digits.slice(5)
+    );
+  }
+
+  return raw;
+}
+
+function normalizePhoneForClinic(value, clinic) {
+  if (clinic?.countryCode === "TH") {
+    return normalizeThaiPhone(value);
+  }
+
+  return normalizeGenericPhone(value);
+}
+
 app.post("/voice-booking", async function (req, res) {
   try {
     const {
