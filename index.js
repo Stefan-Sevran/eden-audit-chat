@@ -4326,16 +4326,63 @@ app.post("/voice-booking", async function (req, res) {
     booking.patientName =
       String(patientName || "").trim();
 
-    const rawPhone =
-  String(phone || "").trim();
+    function normalizeThaiPhone(value) {
+  const raw = String(value || "").trim();
 
-const looksLikeDate =
-  /^\d{4}-\d{2}-\d{2}/.test(rawPhone);
+  if (!raw) return "";
 
-booking.phone =
-  looksLikeDate
-    ? ""
-    : rawPhone;
+  // Reject obvious appointment dates/times.
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return "";
+  }
+
+  const digits = raw.replace(/\D/g, "");
+
+  // Thai international number already includes 66.
+  // Example: 66989252310 -> +66 98 925 2310
+  if (digits.startsWith("66") && digits.length === 11) {
+    const local = digits.slice(2);
+
+    return (
+      "+66 " +
+      local.slice(0, 2) +
+      " " +
+      local.slice(2, 5) +
+      " " +
+      local.slice(5)
+    );
+  }
+
+  // Thai local mobile: 0989252310 -> +66 98 925 2310
+  if (digits.startsWith("0") && digits.length === 10) {
+    const local = digits.slice(1);
+
+    return (
+      "+66 " +
+      local.slice(0, 2) +
+      " " +
+      local.slice(2, 5) +
+      " " +
+      local.slice(5)
+    );
+  }
+
+  // Patient gave the 9-digit Thai number without 0 or +66.
+  // 989252310 -> +66 98 925 2310
+  if (digits.length === 9) {
+    return (
+      "+66 " +
+      digits.slice(0, 2) +
+      " " +
+      digits.slice(2, 5) +
+      " " +
+      digits.slice(5)
+    );
+  }
+
+  // Don't invent formatting for an unexpected number.
+  return raw;
+}
 
     booking.whatsapp =
       String(whatsapp || "").trim();
