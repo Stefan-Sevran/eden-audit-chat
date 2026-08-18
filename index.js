@@ -4574,48 +4574,27 @@ app.post("/voice-booking", async function (req, res) {
       structuredBookingText
     );
 
-    await applyLiveServicePriceToBooking(
-      sessionId,
-      clinic
-    );
+const result =
+  await finalizePatientBooking(
+    sessionId,
+    clinic
+  );
 
-    const bookingRecordId =
-      ensureBookingRecordId(
-        sessionId,
-        clinic
-      );
+if (!result.success) {
+  return res.status(400).json({
+    success: false,
+    error:
+      result.reason ||
+      "Booking could not be finalized"
+  });
+}
 
-    if (!bookingRecordId) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Booking is missing a valid date, time, or service"
-      });
-    }
-
-    const telegramChatId =
-      clinic.telegram?.bookingChatId;
-
-    const message =
-      createBookingTelegramCard(
-        sessionId
-      );
-
-    if (telegramChatId && message) {
-      await sendTelegramTo(
-        telegramChatId,
-        message
-      );
-    }
-
-    await saveBookingToGoogleSheets(
-      sessionId
-    );
-
-    return res.json({
-      success: true,
-      bookingRecordId: bookingRecordId
-    });
+return res.json({
+  success: true,
+  bookingRecordId:
+    result.bookingRecordId
+});
+    
   } catch (error) {
     console.error(
       "Voice booking error:",
