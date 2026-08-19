@@ -3535,7 +3535,10 @@ ${sessionId}
 }
 
 
-function createBookingTelegramCard(sessionId) {
+function createBookingTelegramCard(
+  sessionId,
+  bookingRecordIdOverride = ""
+) {
   const clinicId = sessionClinicId[sessionId] || "pearlsmile";
   const clinic = getClinicConfig(clinicId);
   const booking = ensurePatientBooking(sessionId, clinicId);
@@ -3606,7 +3609,7 @@ const currencySymbol =
   return `
 ${isUpdate ? icons.updated + " UPDATED PATIENT BOOKING" : icons.booking + " NEW PATIENT BOOKING"} - ${clinic.clinicName.toUpperCase()}
 
-${icons.lead} Lead: ${booking.bookingRecordId || booking.leadId || sessionId}
+${icons.lead} Lead: ${bookingRecordIdOverride || booking.bookingRecordId || booking.leadId || sessionId}
 ${icons.patient} Patient: ${booking.patientName || "Not captured yet"}
 ${icons.contact} Phone: ${booking.phone || "Not captured yet"}
 ${icons.message} WhatsApp: ${booking.whatsapp || "Not captured yet"}
