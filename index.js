@@ -4235,15 +4235,25 @@ async function finalizePatientBooking(
       clinic.clinicId
     );
 
-  if (
-    !booking.preferredDate ||
-    !booking.preferredTime
-  ) {
-    return {
-      success: false,
-      reason: "MISSING_DATE_OR_TIME"
-    };
-  }
+const hasContact =
+  Boolean(
+    booking.phone ||
+    booking.whatsapp ||
+    booking.email
+  );
+
+if (
+  !booking.patientName ||
+  !hasContact ||
+  !booking.serviceName ||
+  !booking.preferredDate ||
+  !booking.preferredTime
+) {
+  return {
+    success: false,
+    reason: "MISSING_REQUIRED_BOOKING_DETAILS"
+  };
+}
 
   /*
     Capture ONE canonical booking ID for this
