@@ -2295,13 +2295,24 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
       service.urgent ? "URGENT" : booking.urgency;
   }
 
-  const timeMatch = source.match(
-    /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i
-  );
+const timeMatches = [
+  ...source.matchAll(
+    /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/gi
+  )
+];
 
-  if (timeMatch) {
-    booking.preferredTime = timeMatch[0].toUpperCase();
-  }
+if (timeMatches.length) {
+  /*
+    If the patient mentions an old and a new time,
+    such as "change from 2 PM to 4 PM",
+    the LAST explicit time is the requested destination.
+  */
+  const latestTime =
+    timeMatches[timeMatches.length - 1][0];
+
+  booking.preferredTime =
+    latestTime.toUpperCase();
+}
 
   const dateMatch = source.match(
     /\b(today|tomorrow|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/i
