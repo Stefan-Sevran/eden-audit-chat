@@ -3825,7 +3825,10 @@ async function extractPatientBookingWithAI(sessionId) {
   }
 }
 
-async function saveBookingToGoogleSheets(sessionId) {
+async function saveBookingToGoogleSheets(
+  sessionId,
+  bookingRecordIdOverride = ""
+) {
   const clinicId =
     sessionClinicId[sessionId] || "pearlsmile";
 
@@ -3845,9 +3848,11 @@ async function saveBookingToGoogleSheets(sessionId) {
     return;
   }
 
-  const booking = ensurePatientBooking(
+const bookingRecordId =
+  bookingRecordIdOverride ||
+  ensureBookingRecordId(
     sessionId,
-    clinicId
+    clinic
   );
 
   const contact =
