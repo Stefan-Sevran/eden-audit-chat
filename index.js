@@ -4337,8 +4337,24 @@ await applyLiveServicePriceToBooking(
   
 await maybeSendHumanHandoffAlert(sessionId, latestUserText);
 
-  const booking = ensurePatientBooking(sessionId, clinicId);
-  if (!booking.preferredDate || !booking.preferredTime) {
+const booking =
+  ensurePatientBooking(
+    sessionId,
+    clinicId
+  );
+
+const hasContact =
+  booking.phone ||
+  booking.whatsapp ||
+  booking.email;
+
+if (
+  !booking.patientName ||
+  !hasContact ||
+  !booking.serviceName ||
+  !booking.preferredDate ||
+  !booking.preferredTime
+) {
   return;
 }
   const bookingSignal =
