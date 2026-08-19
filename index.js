@@ -31,6 +31,7 @@ const sessionLeadType = {};
 const sessionClinicId = {};
 const bookingAlertSnapshots = {};
 const patientBookings = {};
+const voiceBookingLocks = {};
 
 app.post(
   "/realtime-call",
