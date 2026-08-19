@@ -4260,11 +4260,12 @@ async function finalizePatientBooking(
   /*
     Build Telegram using the SAME captured ID.
   */
-  const message =
-    createBookingTelegramCard(
-      sessionId,
-      bookingRecordId
-    );
+const message =
+  createBookingTelegramCard(
+    sessionId,
+    bookingRecordId,
+    options
+  );
 
   if (!message) {
     return {
