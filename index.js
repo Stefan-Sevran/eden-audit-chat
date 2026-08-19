@@ -4528,14 +4528,6 @@ app.post("/voice-booking", async function (req, res) {
   Default is "update" so existing Carrd voice code
   continues behaving exactly as it does today.
 */
-if (
-  bookingAction === "create" &&
-  booking.bookingRecordId
-) {
-  booking.bookingRecordId = "";
-  booking.createdAt =
-    new Date().toISOString();
-}
 
     booking.patientName =
       String(patientName || "").trim();
