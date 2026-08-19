@@ -3528,7 +3528,8 @@ ${sessionId}
 
 function createBookingTelegramCard(
   sessionId,
-  bookingRecordIdOverride = ""
+  bookingRecordIdOverride = "",
+  options = {}
 ) {
   const clinicId = sessionClinicId[sessionId] || "pearlsmile";
   const clinic = getClinicConfig(clinicId);
