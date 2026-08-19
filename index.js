@@ -4219,11 +4219,6 @@ async function finalizePatientBooking(
       clinic.clinicId
     );
 
-  /*
-  A booking is not ready to submit until
-  the patient has supplied the core
-  appointment details.
-  */
   if (
     !booking.preferredDate ||
     !booking.preferredTime
@@ -4234,6 +4229,10 @@ async function finalizePatientBooking(
     };
   }
 
+  /*
+    Capture ONE canonical booking ID for this
+    entire finalization transaction.
+  */
   const bookingRecordId =
     ensureBookingRecordId(
       sessionId,
@@ -4247,10 +4246,6 @@ async function finalizePatientBooking(
     };
   }
 
-  /*
-  Apply the clinic's current structured
-  pricing before creating alerts or records.
-  */
   await applyLiveServicePriceToBooking(
     sessionId,
     clinic
@@ -4259,11 +4254,6 @@ async function finalizePatientBooking(
   const telegramChatId =
     clinic.telegram?.bookingChatId;
 
-  const message =
-    createBookingTelegramCard(
-      sessionId
-    );
-
   if (!telegramChatId) {
     return {
       success: false,
@@ -4271,6 +4261,15 @@ async function finalizePatientBooking(
       bookingRecordId
     };
   }
+
+  /*
+    Build Telegram using the SAME captured ID.
+  */
+  const message =
+    createBookingTelegramCard(
+      sessionId,
+      bookingRecordId
+    );
 
   if (!message) {
     return {
@@ -4281,16 +4280,13 @@ async function finalizePatientBooking(
   }
 
   /*
-  Save the operational booking record.
+    Save Sheets using the SAME captured ID.
   */
   await saveBookingToGoogleSheets(
-    sessionId
+    sessionId,
+    bookingRecordId
   );
 
-  /*
-  Notify the clinic only after the booking
-  record has been prepared for persistence.
-  */
   await sendTelegramTo(
     telegramChatId,
     message
