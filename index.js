@@ -3961,8 +3961,8 @@ if (!response.ok || !result?.success) {
 console.log(
   "Booking saved to clinic sheet:",
   clinic.clinicName,
-  booking.leadId,
-  "â†’",
+  bookingRecordId,
+  "->",
   result.sheet,
   result.action,
   "row",
