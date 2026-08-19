@@ -4578,7 +4578,11 @@ app.post("/voice-booking", async function (req, res) {
 const result =
   await finalizePatientBooking(
     sessionId,
-    clinic
+    clinic,
+    {
+      isUpdate:
+        bookingAction === "update"
+    }
   );
 
 if (!result.success) {
