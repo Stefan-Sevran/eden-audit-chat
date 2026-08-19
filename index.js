@@ -3848,13 +3848,6 @@ async function saveBookingToGoogleSheets(
     return;
   }
 
-const bookingRecordId =
-  bookingRecordIdOverride ||
-  ensureBookingRecordId(
-    sessionId,
-    clinic
-  );
-
   const contact =
     booking.whatsapp ||
     booking.phone ||
