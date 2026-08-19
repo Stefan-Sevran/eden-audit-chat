@@ -3538,7 +3538,9 @@ function createBookingTelegramCard(
   if (!clinic) return "";
 
   const session = sessions[sessionId] || [];
-  const isUpdate = Boolean(bookingAlertSnapshots[sessionId]);
+  const isUpdate =
+  options.isUpdate === true ||
+  Boolean(bookingAlertSnapshots[sessionId]);
   const latestPatientMessage = session
     .filter(item => item.role === "user")
     .slice(-1)[0]?.content || "No patient message captured";
