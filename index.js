@@ -2359,28 +2359,38 @@ if (timeMatches.length) {
 }
 
 function findLatestExplicitPatientTime(sessionId) {
-  const userMessages = (sessions[sessionId] || [])
-    .filter(message => message.role === "user")
-    .slice()
-    .reverse();
+  const userMessages =
+    (sessions[sessionId] || [])
+      .filter(message => message.role === "user")
+      .slice()
+      .reverse();
 
   for (const message of userMessages) {
-    const text = String(message.content || "");
+    const text =
+      String(message.content || "");
 
-    const twelveHour = text.match(
-      /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i
-    );
+    const twelveHourMatches = [
+      ...text.matchAll(
+        /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/gi
+      )
+    ];
 
-    if (twelveHour) {
-      return twelveHour[0].toUpperCase();
+    if (twelveHourMatches.length) {
+      return twelveHourMatches[
+        twelveHourMatches.length - 1
+      ][0].toUpperCase();
     }
 
-    const twentyFourHour = text.match(
-      /\b([01]?\d|2[0-3]):([0-5]\d)\b/
-    );
+    const twentyFourHourMatches = [
+      ...text.matchAll(
+        /\b([01]?\d|2[0-3]):([0-5]\d)\b/g
+      )
+    ];
 
-    if (twentyFourHour) {
-      return twentyFourHour[0];
+    if (twentyFourHourMatches.length) {
+      return twentyFourHourMatches[
+        twentyFourHourMatches.length - 1
+      ][0];
     }
   }
 
