@@ -4598,7 +4598,6 @@ app.post("/voice-booking", async function (req, res) {
 
   try {
     const {
-      sessionId,
       clinicId = "pattaya-smile",
 
       bookingAction = "update",
