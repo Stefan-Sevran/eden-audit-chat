@@ -1729,18 +1729,6 @@ function ensureBookingRecordId(sessionId, clinic) {
     clinic?.clinicId || ""
   );
 
-/*
-  A create_patient_booking tool call represents
-  a new submitted appointment request.
-
-  Do not reuse a previously submitted appointment ID
-  just because the browser/session is the same.
-*/
-if (booking.bookingRecordId) {
-  booking.bookingRecordId = "";
-  booking.createdAt = new Date().toISOString();
-}
-  
   if (
     !booking.serviceName ||
     !booking.preferredDate ||
@@ -1750,9 +1738,12 @@ if (booking.bookingRecordId) {
   }
 
   /*
-    Keep one permanent booking ID for this appointment.
-    Date/time changes update the existing Sheet row instead
-    of creating a second booking.
+    Once created, this booking ID stays fixed
+    for this appointment.
+
+    Updates to date, time, contact details,
+    service details, or patient information
+    continue using the same booking record.
   */
   if (!booking.bookingRecordId) {
     const datePart = booking.preferredDate
