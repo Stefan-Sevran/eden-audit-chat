@@ -4575,6 +4575,27 @@ function normalizePhoneForClinic(value, clinic) {
 }
 
 app.post("/voice-booking", async function (req, res) {
+  const sessionId =
+    String(req.body?.sessionId || "").trim();
+
+  if (!sessionId) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing sessionId"
+    });
+  }
+
+  while (voiceBookingLocks[sessionId]) {
+    await voiceBookingLocks[sessionId];
+  }
+
+  let releaseLock;
+
+  voiceBookingLocks[sessionId] =
+    new Promise(function (resolve) {
+      releaseLock = resolve;
+    });
+
   try {
     const {
       sessionId,
@@ -4708,6 +4729,9 @@ return res.json({
       success: false,
       error: "Could not save voice booking"
     });
+  } finally {
+    releaseLock();
+    delete voiceBookingLocks[sessionId];
   }
 });
 
