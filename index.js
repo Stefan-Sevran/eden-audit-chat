@@ -4259,6 +4259,18 @@ async function finalizePatientBooking(
       clinic.clinicId
     );
 
+booking.phone =
+  normalizePhoneForClinic(
+    booking.phone,
+    clinic
+  );
+
+booking.whatsapp =
+  normalizePhoneForClinic(
+    booking.whatsapp,
+    clinic
+  );
+  
 const hasContact =
   Boolean(
     booking.phone ||
