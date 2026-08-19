@@ -2231,11 +2231,26 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
     }
   }
 
-  const phone = source.match(/(\+?\d[\d\s().-]{7,}\d)/);
+const phone =
+  source.match(
+    /(\+?\d[\d\s().-]{7,}\d)/
+  );
 
-  if (phone) {
-    const number = phone[0].trim();
+if (phone) {
+  const number =
+    normalizePhoneForClinic(
+      phone[0].trim(),
+      clinic
+    );
 
+  /*
+    Ignore date-like values and other invalid
+    phone candidates.
+
+    Most importantly: never overwrite an already
+    valid phone number with an appointment date.
+  */
+  if (number) {
     const mentionsWhatsApp =
       /\b(whatsapp|what'?s\s*app|wa)\b/i.test(source);
 
@@ -2244,16 +2259,25 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
 
     if (mentionsWhatsApp) {
       booking.whatsapp = number;
-      booking.phone = booking.phone || number;
-      booking.preferredContactMethod = "WhatsApp";
+
+      booking.phone =
+        booking.phone || number;
+
+      booking.preferredContactMethod =
+        "WhatsApp";
     } else {
       booking.phone = number;
 
-      if (mentionsPhone || !booking.preferredContactMethod) {
-        booking.preferredContactMethod = "Phone";
+      if (
+        mentionsPhone ||
+        !booking.preferredContactMethod
+      ) {
+        booking.preferredContactMethod =
+          "Phone";
       }
     }
   }
+}
 
   if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?email\b/i.test(source)) {
     booking.preferredContactMethod = "Email";
