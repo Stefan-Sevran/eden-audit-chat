@@ -3832,7 +3832,8 @@ async function saveBookingToGoogleSheets(
   const clinicId =
     sessionClinicId[sessionId] || "pearlsmile";
 
-  const clinic = getClinicConfig(clinicId);
+  const clinic =
+    getClinicConfig(clinicId);
 
   if (!clinic) return;
 
@@ -3847,6 +3848,12 @@ async function saveBookingToGoogleSheets(
     );
     return;
   }
+
+  const booking =
+    ensurePatientBooking(
+      sessionId,
+      clinicId
+    );
 
   const contact =
     booking.whatsapp ||
@@ -3864,11 +3871,12 @@ async function saveBookingToGoogleSheets(
       ? "Email"
       : "");
 
-const bookingRecordId =
-  ensureBookingRecordId(
-    sessionId,
-    clinic
-  );
+  const bookingRecordId =
+    bookingRecordIdOverride ||
+    ensureBookingRecordId(
+      sessionId,
+      clinic
+    );
 
   if (!bookingRecordId) {
     return;
