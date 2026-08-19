@@ -4605,6 +4605,74 @@ app.post("/voice-booking", async function (req, res) {
         clinicId
       );
 
+const incomingPatientName =
+  String(patientName || "")
+    .trim()
+    .toLowerCase();
+
+const existingPatientName =
+  String(booking.patientName || "")
+    .trim()
+    .toLowerCase();
+
+const incomingService =
+  String(service || "")
+    .trim()
+    .toLowerCase();
+
+const existingService =
+  String(booking.serviceName || "")
+    .trim()
+    .toLowerCase();
+
+const incomingDate =
+  String(requestedDate || "").trim();
+
+const existingDate =
+  String(booking.preferredDate || "").trim();
+
+const incomingTime =
+  String(requestedTime || "")
+    .trim()
+    .toLowerCase();
+
+const existingTime =
+  String(booking.preferredTime || "")
+    .trim()
+    .toLowerCase();
+
+const isClearlyDifferentBooking =
+  bookingAction === "create" &&
+  booking.bookingRecordId &&
+  (
+    (
+      incomingPatientName &&
+      existingPatientName &&
+      incomingPatientName !== existingPatientName
+    ) ||
+    (
+      incomingService &&
+      existingService &&
+      incomingService !== existingService
+    ) ||
+    (
+      incomingDate &&
+      existingDate &&
+      incomingDate !== existingDate
+    ) ||
+    (
+      incomingTime &&
+      existingTime &&
+      incomingTime !== existingTime
+    )
+  );
+
+if (isClearlyDifferentBooking) {
+  booking.bookingRecordId = "";
+  booking.createdAt =
+    new Date().toISOString();
+}
+    
   /*
   Voice booking lifecycle:
 
