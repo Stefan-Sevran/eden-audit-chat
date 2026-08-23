@@ -1,6 +1,71 @@
 const express = require("express");
 const cors = require("cors");
 
+const {
+  normalizeGenericPhone,
+  normalizeThaiPhone,
+  normalizePhoneForClinic
+} = require("./phone-normalization");
+
+const {
+  stableBookingHash,
+  buildBookingRecordId
+} = require("./booking-id");
+
+
+const {
+  createClinics
+} = require("./clinics");
+
+
+const {
+  sendTelegramTo,
+  sendTelegram
+} = require("./integrations/telegram");
+
+
+const {
+  postJsonToGoogleSheets
+} = require("./integrations/google-sheets");
+
+
+const {
+  createLiveInboxIntegration
+} = require("./integrations/live-inbox");
+
+const {
+  createSupabaseClient
+} = require("./integrations/supabase");
+
+const {
+  createBookingPersistence
+} = require("./booking/persistence");
+
+const {
+  createClinicRuntime
+} = require("./clinics/runtime");
+
+
+const {
+  createBookingState
+} = require("./booking/state");
+
+
+const {
+  applyBookingLifecycleDecision
+} = require("./booking/lifecycle");
+
+
+const {
+  createBookingFinalizer
+} = require("./booking/finalize");
+
+
+const {
+  applyBookingUpdate
+} = require("./booking/update");
+
+
 const app = express();
 
 app.use(cors());
@@ -32,6 +97,113 @@ const sessionClinicId = {};
 const bookingAlertSnapshots = {};
 const patientBookings = {};
 const voiceBookingLocks = {};
+
+
+const {
+  ensurePatientBooking: bookingStateEnsurePatientBooking,
+  getBookingRecordSignature: bookingStateGetBookingRecordSignature,
+  ensureBookingRecordId: bookingStateEnsureBookingRecordId
+} = createBookingState({
+  patientBookings,
+  sessionClinicId
+});
+
+
+const ensurePatientBooking =
+  bookingStateEnsurePatientBooking;
+
+const {
+  liveInboxConfigured,
+  supabaseRequest,
+  createVisitorToken,
+  getBookingContactSnapshot,
+  upsertLiveConversation,
+  getLiveConversationBySession,
+  recordLiveMessage,
+  updateLiveConversation
+} = createLiveInboxIntegration({
+  supabaseUrl: SUPABASE_URL,
+  supabaseServiceRoleKey:
+    SUPABASE_SERVICE_ROLE_KEY,
+  ensurePatientBooking
+});
+
+const {
+  supabaseRequest:
+    bookingSupabaseRequest
+} = createSupabaseClient({
+  supabaseUrl: SUPABASE_URL,
+  supabaseServiceRoleKey:
+    SUPABASE_SERVICE_ROLE_KEY
+});
+
+const {
+  loadBookingSession,
+  saveBookingSession,
+  hydrateBookingSession
+} = createBookingPersistence({
+  supabaseRequest:
+    bookingSupabaseRequest
+});
+
+async function hydrateBookingSessionSafely(
+  sessionId
+) {
+  try {
+    return await hydrateBookingSession({
+      sessionId,
+      patientBookings,
+      sessionClinicId
+    });
+  } catch (error) {
+    console.error(
+      "Booking persistence hydrate error:",
+      error.message
+    );
+
+    return null;
+  }
+}
+
+async function saveBookingSessionSafely(
+  sessionId,
+  clinicId,
+  booking
+) {
+  try {
+    return await saveBookingSession({
+      sessionId,
+      clinicId,
+      booking
+    });
+  } catch (error) {
+    console.error(
+      "Booking persistence save error:",
+      error.message
+    );
+
+    return null;
+  }
+}
+
+const getBookingRecordSignature =
+  bookingStateGetBookingRecordSignature;
+
+const ensureBookingRecordId =
+  bookingStateEnsureBookingRecordId;
+
+
+const {
+  finalizePatientBooking: bookingFinalizerFinalizePatientBooking
+} = createBookingFinalizer({
+  ensurePatientBooking,
+  normalizePhoneForClinic,
+  ensureBookingRecordId,
+  applyLiveServicePriceToBooking,
+  createBookingTelegramCard,
+  saveBookingToGoogleSheets,
+  sendTelegramTo
+});
 
 app.post(
   "/realtime-call",
@@ -274,163 +446,6 @@ const openaiResponse = await fetch(
   Supabase key. The visitor token is a per-conversation read key that
   lets the widget receive human replies without exposing other chats.
 */
-function liveInboxConfigured() {
-  return Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
-}
-
-async function supabaseRequest(path, options = {}) {
-  if (!liveInboxConfigured()) {
-    throw new Error("Supabase live inbox is not configured on Render.");
-  }
-
-  const response = await fetch(SUPABASE_URL + path, {
-    ...options,
-    headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-
-  const responseText = await response.text();
-  let payload = null;
-
-  try {
-    payload = responseText ? JSON.parse(responseText) : null;
-  } catch (error) {
-    payload = responseText;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      "Supabase " + response.status + ": " +
-      (typeof payload === "string"
-        ? payload
-        : JSON.stringify(payload))
-    );
-  }
-
-  return payload;
-}
-
-function createVisitorToken() {
-  return require("crypto").randomBytes(24).toString("hex");
-}
-
-function getBookingContactSnapshot(sessionId, clinicId) {
-  const booking = ensurePatientBooking(sessionId, clinicId);
-
-  return {
-    patient_name: booking.patientName || null,
-    phone: booking.phone || null,
-    whatsapp: booking.whatsapp || null,
-    email: booking.email || null
-  };
-}
-
-async function upsertLiveConversation(
-  sessionId,
-  clinicId,
-  latestMessage
-) {
-  if (!liveInboxConfigured()) return null;
-
-  const contact = getBookingContactSnapshot(sessionId, clinicId);
-  const now = new Date().toISOString();
-
-  const record = {
-    clinic_id: clinicId,
-    session_id: sessionId,
-    ...contact,
-    last_message_preview: String(latestMessage || "").slice(0, 500),
-    last_message_at: now,
-    updated_at: now
-  };
-
-  const rows = await supabaseRequest(
-    "/rest/v1/live_conversations?on_conflict=session_id",
-    {
-      method: "POST",
-      headers: {
-        Prefer: "resolution=merge-duplicates,return=representation"
-      },
-      body: JSON.stringify(record)
-    }
-  );
-
-  return rows && rows[0] ? rows[0] : null;
-}
-
-async function getLiveConversationBySession(sessionId) {
-  if (!liveInboxConfigured()) return null;
-
-  const rows = await supabaseRequest(
-    "/rest/v1/live_conversations?session_id=eq." +
-      encodeURIComponent(sessionId) +
-      "&select=*"
-  );
-
-  return rows && rows[0] ? rows[0] : null;
-}
-
-async function recordLiveMessage(sessionId, clinicId, sender, body, staffName) {
-  if (!liveInboxConfigured() || !body || !String(body).trim()) {
-    return null;
-  }
-
-  let conversation = await upsertLiveConversation(
-    sessionId,
-    clinicId,
-    body
-  );
-
-  if (!conversation) return null;
-
-  if (!conversation.visitor_token) {
-    const visitorToken = createVisitorToken();
-    const rows = await supabaseRequest(
-      "/rest/v1/live_conversations?id=eq." + conversation.id,
-      {
-        method: "PATCH",
-        headers: { Prefer: "return=representation" },
-        body: JSON.stringify({ visitor_token: visitorToken })
-      }
-    );
-
-    conversation = rows && rows[0] ? rows[0] : conversation;
-  }
-
-  await supabaseRequest("/rest/v1/live_messages", {
-    method: "POST",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({
-      conversation_id: conversation.id,
-      sender,
-      body: String(body).trim(),
-      staff_name: staffName || null
-    })
-  });
-
-  return conversation;
-}
-
-async function updateLiveConversation(id, changes) {
-  const rows = await supabaseRequest(
-    "/rest/v1/live_conversations?id=eq." + encodeURIComponent(id),
-    {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({
-        ...changes,
-        updated_at: new Date().toISOString()
-      })
-    }
-  );
-
-  return rows && rows[0] ? rows[0] : null;
-}
-
 function inboxAdminAuthorized(req) {
   if (!INBOX_ADMIN_USERNAME || !INBOX_ADMIN_PASSWORD) {
     return false;
@@ -467,369 +482,7 @@ function requireInboxAdmin(req, res, next) {
   next();
 }
 
-const CLINICS = {
-  pearlsmile: {
-    clinicId: "pearlsmile",
-    clinicCode: "PSD",
-
-    clinicName: "PearlSmile Dental",
-    assistantName: "Maria",
-
-    clinicType: "Dental clinic",
-    city: "Cebu",
-    country: "Philippines",
-    timezone: "Asia/Manila",
-    currency: "PHP",
-    currencySymbol: "\u20B1",
-
-    status: "demo",
-
-    contact: {
-      phone: "+63 917 555 0148",
-      email: "hello@pearlsmile-demo.ph",
-      address: "Cebu Business Park, Cebu City",
-      mapUrl: "https://maps.google.com/?q=Cebu+Business+Park+Cebu+City"
-    },
-
-    languages: ["English", "Cebuano", "Tagalog"],
-
-    openingHours: {
-      monday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
-      tuesday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
-      wednesday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
-      thursday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
-      friday: "9:00 AMÃ¢â‚¬â€œ6:00 PM",
-      saturday: "9:00 AMÃ¢â‚¬â€œ5:00 PM",
-      sunday: "Closed"
-    },
-
-    bookingRules: {
-      sameDayAllowed: true,
-      confirmationRequired: true,
-      depositRequired: false,
-      cancellationNoticeHours: 24,
-      lateArrivalMinutes: 15,
-      emergencyInstruction:
-        "For heavy bleeding, facial swelling with breathing difficulty, severe trauma, or a life-threatening emergency, call local emergency services or go to the nearest emergency department immediately."
-    },
-
-    paymentMethods: ["Cash", "GCash", "Maya", "Major cards"],
-
-    insurancePolicy:
-      "The clinic can provide receipts and treatment documents. Insurance coverage depends on the patient's individual plan and must be verified with the insurer before treatment.",
-
-    availableSlots: ["10:00 AM", "2:00 PM", "4:00 PM"],
-
-    services: [
-      {
-        id: "cleaning",
-        name: "Teeth Cleaning",
-        aliases: ["cleaning", "oral prophylaxis", "prophylaxis"],
-        priceText: "Ã¢â€šÂ±1,500",
-        estimatedVisitValue: 1500,
-        durationMinutes: 45,
-        consultationRequired: false,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true
-      },
-      {
-        id: "whitening",
-        name: "Teeth Whitening",
-        aliases: ["whitening", "teeth whitening", "bleaching"],
-        priceText: "From Ã¢â€šÂ±7,500",
-        estimatedVisitValue: 7500,
-        durationMinutes: 90,
-        consultationRequired: true,
-        consultationPrice: 500,
-        potentialServiceValueMin: 7500,
-        potentialServiceValueMax: 12000,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true
-      },
-      {
-        id: "braces_consultation",
-        name: "Braces Consultation",
-        aliases: ["braces", "orthodontics", "orthodontic consultation"],
-        priceText: "Ã¢â€šÂ±500 consultation",
-        estimatedVisitValue: 500,
-        durationMinutes: 30,
-        consultationRequired: true,
-        consultationPrice: 500,
-        potentialServiceName: "Braces treatment",
-        potentialServiceValueMin: 45000,
-        potentialServiceValueMax: 90000,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true
-      },
-      {
-        id: "implant_consultation",
-        name: "Dental Implant Consultation",
-        aliases: ["implant", "dental implant", "missing tooth"],
-        priceText: "Ã¢â€šÂ±500 consultation",
-        estimatedVisitValue: 500,
-        durationMinutes: 30,
-        consultationRequired: true,
-        consultationPrice: 500,
-        potentialServiceName: "Dental implant",
-        potentialServiceValueMin: 65000,
-        potentialServiceValueMax: 95000,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true
-      },
-      {
-        id: "veneers_consultation",
-        name: "Veneers Consultation",
-        aliases: ["veneers", "porcelain veneers"],
-        priceText: "Ã¢â€šÂ±500 consultation",
-        estimatedVisitValue: 500,
-        durationMinutes: 30,
-        consultationRequired: true,
-        consultationPrice: 500,
-        potentialServiceName: "Veneers",
-        potentialServiceValueMin: 12000,
-        potentialServiceValueMax: 25000,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true
-      },
-      {
-        id: "emergency_dental",
-        name: "Emergency Dental Assessment",
-        aliases: ["tooth pain", "emergency", "swelling", "broken tooth", "toothache"],
-        priceText: "Assessment from Ã¢â€šÂ±800; treatment depends on findings",
-        estimatedVisitValue: 2000,
-        durationMinutes: 30,
-        consultationRequired: true,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true,
-        urgent: true
-      },
-      {
-        id: "kids_dentistry",
-        name: "Kids Dentistry Visit",
-        aliases: ["kids", "child", "children", "pediatric dentistry"],
-        priceText: "From Ã¢â€šÂ±1,200",
-        estimatedVisitValue: 1200,
-        durationMinutes: 45,
-        consultationRequired: false,
-        aiCanRequestBooking: true,
-        humanConfirmationRequired: true
-      }
-    ],
-
-    telegram: {
-      bookingChatId: process.env.TELEGRAM_CHAT_ID_PEARLSMILE_BOOKINGS
-    },
-
-    googleSheets: {
-      clinicLabel: "PearlSmile Dental",
-      channelLabel: "Website AI booking chat"
-    },
-
-    commercialModel: {
-      supportLevel: "AI_ONLY",
-      edenRate: 0.10,
-      defaultVisitValue: 2000
-    },
-
-    channels: {
-      websiteChat: {
-        enabled: true
-      },
-
-      missedCallResponder: {
-        enabled: true,
-        mode: "voice_plus_sms",
-        stableForCommercialUse: true,
-        sendsTelegramAlert: true,
-        sendsBookingLinkSms: true,
-        allowsHumanFollowUp: true
-      },
-
-      conversationalVoiceAI: {
-        enabled: false,
-        status: "development",
-        stableForCommercialUse: false
-      }
-    }
-  }
-};
-
-CLINICS["pattaya-smile"] = {
-  ...CLINICS.pearlsmile,
-
-  clinicId: "pattaya-smile",
-  clinicCode: "PST",
-  countryCode: "TH",
-  clinicName: "Pattaya Smile Dental",
-  assistantName: "Nida",
-  clinicType: "Premium digital dental clinic",
-
-  city: "Pattaya",
-  country: "Thailand",
-  timezone: "Asia/Bangkok",
-  currency: "THB",
-  currencySymbol: "à¸¿",
-  status: "demo",
-
-  contact: {
-    phone: "",
-    email: "",
-    address: "Pattaya, Thailand",
-    mapUrl: ""
-  },
-
-  languages: ["English", "Thai"],
-
-receptionistStyle:
-  "You are Nida: warm, elegant, calm and reassuring. Use natural English by default. Lightly mirror simple Thai only when the patient uses Thai. In the first reply, a gentle 'Sawadee ka' is welcome; do not repeat it in every message. Keep replies short, human and helpful. Never pressure the patient, invent facts, promise an appointment, or sound like a sales bot.",
-  
-  openingHours: {
-    monday: "10:00 AM - 8:00 PM",
-    tuesday: "10:00 AM - 8:00 PM",
-    wednesday: "10:00 AM - 8:00 PM",
-    thursday: "10:00 AM - 8:00 PM",
-    friday: "10:00 AM - 8:00 PM",
-    saturday: "10:00 AM - 8:00 PM",
-    sunday: "10:00 AM - 8:00 PM"
-  },
-
-  bookingRules: {
-    sameDayAllowed: true,
-    confirmationRequired: true,
-    depositRequired: false,
-    cancellationNoticeHours: 24,
-    lateArrivalMinutes: 15,
-    emergencyInstruction:
-      "For facial swelling with breathing difficulty, uncontrolled bleeding, severe trauma, or another serious emergency, seek urgent medical care immediately. For dental emergencies, Nida can request priority clinic follow-up."
-  },
-
-  availableSlots: [
-    "10:00 AM",
-    "12:00 PM",
-    "2:00 PM",
-    "4:00 PM",
-    "6:00 PM"
-  ],
-
-  services: [
-    {
-      id: "smile_assessment",
-      name: "Smile Assessment & Check-up",
-      aliases: ["check-up", "checkup", "consultation", "smile assessment"],
-      priceText: "Personalised quote after assessment",
-      estimatedVisitValue: 1500,
-      durationMinutes: 30,
-      consultationRequired: true,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true
-    },
-    {
-      id: "scaling_polishing",
-      name: "Scaling & Polishing",
-      aliases: ["cleaning", "scaling", "polishing", "hygiene"],
-      priceText: "Price confirmed by the clinic",
-      estimatedVisitValue: 1500,
-      durationMinutes: 45,
-      consultationRequired: false,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true
-    },
-    {
-      id: "teeth_whitening",
-      name: "Teeth Whitening",
-      aliases: ["whitening", "bleaching"],
-      priceText: "Personalised quote after assessment",
-      estimatedVisitValue: 10000,
-      durationMinutes: 90,
-      consultationRequired: true,
-      potentialServiceName: "Professional teeth whitening",
-      potentialServiceValueMin: 8000,
-      potentialServiceValueMax: 15000,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true
-    },
-    {
-      id: "veneers_consultation",
-      name: "Veneers & Smile Makeover Consultation",
-      aliases: ["veneers", "smile makeover", "hollywood smile"],
-      priceText: "Personalised quote after assessment",
-      estimatedVisitValue: 1500,
-      durationMinutes: 45,
-      consultationRequired: true,
-      potentialServiceName: "Veneers or smile makeover",
-      potentialServiceValueMin: 25000,
-      potentialServiceValueMax: 120000,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true
-    },
-    {
-      id: "orthodontics_consultation",
-      name: "Braces & Clear Aligner Consultation",
-      aliases: ["braces", "invisalign", "clear aligners", "orthodontics"],
-      priceText: "Personalised quote after assessment",
-      estimatedVisitValue: 1500,
-      durationMinutes: 30,
-      consultationRequired: true,
-      potentialServiceName: "Orthodontic treatment",
-      potentialServiceValueMin: 35000,
-      potentialServiceValueMax: 150000,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true
-    },
-    {
-      id: "implant_consultation",
-      name: "Dental Implant Consultation",
-      aliases: ["implant", "dental implant", "missing tooth", "all-on-4", "all-on-6"],
-      priceText: "Personalised quote after assessment",
-      estimatedVisitValue: 1500,
-      durationMinutes: 45,
-      consultationRequired: true,
-      potentialServiceName: "Dental implant treatment",
-      potentialServiceValueMin: 45000,
-      potentialServiceValueMax: 300000,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true
-    },
-    {
-      id: "emergency_dental",
-      name: "Urgent Dental Assessment",
-      aliases: ["emergency", "tooth pain", "toothache", "swelling", "broken tooth"],
-      priceText: "Clinic confirms urgency and cost",
-      estimatedVisitValue: 2000,
-      durationMinutes: 30,
-      consultationRequired: true,
-      aiCanRequestBooking: true,
-      humanConfirmationRequired: true,
-      urgent: true
-    }
-  ],
-
-  paymentMethods: [
-    "Cash",
-    "Major cards",
-    "Bank transfer",
-    "Insurance claim documents"
-  ],
-
-  insurancePolicy:
-    "Insurance details must be confirmed by the clinic team.",
-
-  telegram: {
-    bookingChatId:
-      process.env.TELEGRAM_CHAT_ID_PATTAYA_SMILE_BOOKINGS
-  },
-
-  googleSheets: {
-    clinicLabel: "Pattaya Smile Dental",
-    channelLabel: "Website AI booking chat",
-  intakeUrl:
-    "https://script.google.com/macros/s/AKfycby_9UvHenDdcahFUwfiMfFiOIjyxl9LWSYquhof3XdALHFd1hpbkD4eGhty8RsJ_aKH/exec",
-
-  knowledgeUrl:
-    "https://script.google.com/macros/s/AKfycbwLIihsBb6PYlAVksrHtysGWKr0lFPNg76vzGuDd2isizD_8RuCd4pwWoJ8xP--CNzWWw/exec"
-
-  }
-};
+const CLINICS = createClinics();
 
 const SYSTEM_PROMPT = `
 You are Eden Clinic Network's AI Clinic Growth Auditor.
@@ -1032,120 +685,6 @@ PRIVACY
 Collect only information needed for booking and clinic follow-up.
 `;
 
-function formatClinicServices(clinic) {
-  return (clinic.services || [])
-    .map(service => {
-      const potential = service.potentialServiceName
-        ? ` Potential next service: ${service.potentialServiceName} (${clinic.currencySymbol}${service.potentialServiceValueMin?.toLocaleString()}Ã¢â‚¬â€œ${clinic.currencySymbol}${service.potentialServiceValueMax?.toLocaleString()}).`
-        : "";
-
-      return `- ${service.name}: ${service.priceText}; approximately ${service.durationMinutes} minutes.${potential}`;
-    })
-    .join("\n");
-}
-
-function formatClinicKnowledge(knowledge) {
-  const facts = knowledge?.facts || [];
-
-  if (!facts.length) {
-    return "No additional approved clinic facts are currently available.";
-  }
-
-  return facts
-    .map(function(fact) {
-      const wording =
-        fact.publicWording ||
-        fact.value ||
-        "";
-
-      return `- ${fact.category} / ${fact.field}: ${wording}`;
-    })
-    .join("\n");
-}
-
-function buildClinicBookingPrompt(clinic, knowledge = null) {
-  const hours = Object.entries(clinic.openingHours || {})
-    .map(([day, value]) => `${day}: ${value}`)
-    .join("\n");
-
-  return `
-${BOOKING_SYSTEM_PROMPT}
-
-CURRENT CLINIC
-Clinic ID: ${clinic.clinicId}
-Clinic name: ${clinic.clinicName}
-Assistant name: ${clinic.assistantName}
-Clinic type: ${clinic.clinicType}
-Location: ${clinic.city}, ${clinic.country}
-Timezone: ${clinic.timezone}
-Currency: ${clinic.currency}
-Languages: ${(clinic.languages || []).join(", ")}
-
-RECEPTIONIST VOICE
-${clinic.receptionistStyle || "Warm, concise, professional and reassuring."}
-
-OPENING HOURS
-${hours}
-
-AVAILABLE DEMO REQUEST TIMES
-${(clinic.availableSlots || []).join(", ")}
-The clinic must still confirm availability.
-
-APPOINTMENT-TIME RULES
-- Never silently change a time requested by the patient.
-- The patient's latest explicit time selection is the authoritative requested time.
-- If the requested time is not in AVAILABLE DEMO REQUEST TIMES, clearly say it is not among the currently shown times and offer the exact available alternatives.
-- Only replace the requested time after the patient explicitly selects or accepts another time.
-- Do not describe a booking as confirmed until the clinic confirms it.
-
-SERVICES AND PRICES
-${formatClinicServices(clinic)}
-
-APPROVED CLINIC KNOWLEDGE
-${formatClinicKnowledge(knowledge)}
-
-KNOWLEDGE RULES
-- Treat APPROVED CLINIC KNOWLEDGE as the clinic-approved source of truth.
-- Use the approved public wording when answering patients.
-- Do not mention the Clinic KB, Google Sheets, approval status, or internal sources.
-- If approved knowledge conflicts with older hard-coded clinic information, follow the approved knowledge.
-- If the requested fact is absent, do not guess. Say the clinic team will confirm.
-- Never weaken or make a Clinic KB policy more absolute than its approved public wording.
-- When a Clinic KB policy exists, do not combine it with conflicting or broader fallback wording.
-- Do not turn conditional wording into a definite yes/no claim.
-- For insurance, say only what the approved KB states. If coverage varies by provider or plan, do not say “the clinic accepts insurance” unless the KB explicitly confirms that.
-
-BOOKING AND CLINIC POLICIES
-
-Use APPROVED CLINIC KNOWLEDGE first for:
-- same-day booking rules
-- clinic confirmation requirements
-- deposits
-- cancellations
-- late arrival guidance
-- insurance
-- payment methods
-- emergency instructions
-
-If an approved fact is not available, use these fallback defaults:
-
-Same-day requests: ${clinic.bookingRules?.sameDayAllowed ? "Allowed when available" : "Not offered"}
-Clinic confirmation required: ${clinic.bookingRules?.confirmationRequired ? "Yes" : "No"}
-Deposit fallback: If no approved Clinic KB deposit policy is available, ask the clinic team to confirm.
-Insurance fallback: If no approved Clinic KB insurance policy is available, ask the clinic team to confirm.
-Late arrival guidance: Please alert the clinic if more than ${clinic.bookingRules?.lateArrivalMinutes || 15} minutes late.
-Insurance: ${clinic.insurancePolicy}
-Payment methods: ${(clinic.paymentMethods || []).join(", ")}
-Emergency instruction fallback: ${clinic.bookingRules?.emergencyInstruction}
-
-FINAL IDENTITY RULES
-You are ${clinic.assistantName}, the booking receptionist for ${clinic.clinicName}.
-Do not mention another clinic.
-Do not mention Eden or ClinicNet unless the patient explicitly asks who powers the chat; then answer briefly that the clinic uses Eden Clinic Network technology.
-Do not invent clinic information.
-`;
-}
-
 const RECEPTIONIST_SYSTEM_PROMPT = `
 You are Eden Clinic Network's Revenue Rescue AI ReceptionistÃ¢â€žÂ¢ Advisor.
 Your mission is to identify motivated clinics that qualify for a free AI Receptionist.
@@ -1285,6 +824,17 @@ One question at a time.
 
 `;
 
+const {
+  formatClinicServices,
+  formatClinicKnowledge,
+  buildClinicBookingPrompt,
+  getLiveServicePrices,
+  getLiveClinicKnowledge,
+  getClinicWithLiveServicePrices
+} = createClinicRuntime({
+  bookingSystemPrompt: BOOKING_SYSTEM_PROMPT
+});
+
 function getClinicConfig(clinicId) {
   return CLINICS[clinicId] || null;
 }
@@ -1292,297 +842,6 @@ function getClinicConfig(clinicId) {
 function getClinicName(clinicId) {
   return CLINICS[clinicId]?.clinicName || "Unknown clinic";
 }
-
-// =========================================================
-// LIVE CLINIC SERVICE PRICES
-// Reads each clinic's own Service Prices tab.
-// Staff can change prices in Google Sheets — no GitHub edits.
-// =========================================================
-
-const liveServicePriceCache = {};
-const LIVE_PRICE_CACHE_MS = 60 * 1000;
-
-async function getLiveServicePrices(clinic) {
-  const intakeUrl = clinic.googleSheets?.intakeUrl;
-
-  if (!intakeUrl) {
-    return {};
-  }
-
-  const cacheKey = clinic.clinicId;
-  const cached = liveServicePriceCache[cacheKey];
-
-  if (
-    cached &&
-    Date.now() - cached.loadedAt < LIVE_PRICE_CACHE_MS
-  ) {
-    return cached.prices;
-  }
-
-try {
-  const priceUrl =
-    clinic.googleSheets?.knowledgeUrl ||
-    clinic.googleSheets?.intakeUrl;
-
-  const separator = priceUrl.includes("?") ? "&" : "?";
-
-  const response = await fetch(
-    priceUrl + separator + "action=prices"
-  );
-
-  if (!response.ok) {
-    throw new Error("Price catalogue request failed");
-  }
-
-  const data = await response.json();
-
-  const prices =
-    data?.success && data?.prices
-      ? data.prices
-      : {};
-
-  const services =
-    data?.success && Array.isArray(data?.services)
-      ? data.services
-      : [];
-
-  liveServicePriceCache[cacheKey] = {
-    loadedAt: Date.now(),
-    prices: prices,
-    services: services
-  };
-
-  return prices;
-} catch (error) {
-  console.warn(
-    "Live service prices unavailable for:",
-    clinic.clinicName,
-    error.message
-  );
-
-  return {};
-}
-} 
-  
-// =========================================================
-// LIVE CLINIC KNOWLEDGE
-// Reads approved facts from each clinic's Clinic KB tab.
-// =========================================================
-
-const liveClinicKnowledgeCache = {};
-const LIVE_KNOWLEDGE_CACHE_MS = 60 * 1000;
-
-async function getLiveClinicKnowledge(clinic) {
-  const knowledgeUrl = clinic.googleSheets?.knowledgeUrl;
-
-  if (!knowledgeUrl) {
-    return null;
-  }
-
-  const cacheKey = clinic.clinicId;
-  const cached = liveClinicKnowledgeCache[cacheKey];
-
-  if (
-    cached &&
-    Date.now() - cached.loadedAt < LIVE_KNOWLEDGE_CACHE_MS
-  ) {
-    return cached.knowledge;
-  }
-
-  try {
-    const separator = knowledgeUrl.includes("?") ? "&" : "?";
-
-    const response = await fetch(
-      knowledgeUrl + separator + "action=knowledge"
-    );
-
-    if (!response.ok) {
-      throw new Error("Clinic knowledge request failed");
-    }
-
-    const data = await response.json();
-
-    const knowledge =
-      data?.success && data?.knowledge
-        ? data.knowledge
-        : null;
-
-    liveClinicKnowledgeCache[cacheKey] = {
-      loadedAt: Date.now(),
-      knowledge: knowledge
-    };
-
-    return knowledge;
-  } catch (error) {
-    console.warn(
-      "Live clinic knowledge unavailable for:",
-      clinic.clinicName,
-      error.message
-    );
-
-    return null;
-  }
-}
-
-async function getClinicWithLiveServicePrices(clinic) {
-  const prices = await getLiveServicePrices(clinic);
-
-  function normalisePriceLabel(value) {
-    return String(value || "")
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  const standardPriceLabels = {
-    smile_assessment: [
-      "Dental Consultation",
-      "General Consultation",
-      "Check-up"
-    ],
-
-    scaling_polishing: [
-      "Teeth Cleaning",
-      "Scaling & Polishing"
-    ],
-
-    teeth_whitening: [
-      "Teeth Whitening"
-    ],
-
-    veneers_consultation: [
-      "Veneers Consultation",
-      "Smile Makeover Consultation"
-    ],
-
-    orthodontics_consultation: [
-      "Braces Consultation",
-      "Clear Aligner Consultation"
-    ],
-
-    implant_consultation: [
-      "Implant Consultation",
-      "Dental Implant Consultation"
-    ],
-
-    emergency_dental: [
-      "Emergency / Tooth Pain",
-      "Emergency Dental Assessment"
-    ]
-  };
-
-  const pricesByKey = {};
-
-  Object.keys(prices || {}).forEach(function(label) {
-    pricesByKey[normalisePriceLabel(label)] = prices[label];
-  });
-
-  const structuredServices =
-    liveServicePriceCache[clinic.clinicId]?.services || [];
-
-  return {
-    ...clinic,
-
-    services: (clinic.services || []).map(function(service) {
-      const labelsToCheck = [
-        service.name
-      ]
-        .concat(service.priceLabels || [])
-        .concat(standardPriceLabels[service.id] || []);
-
-      const normalisedLabels =
-        labelsToCheck.map(normalisePriceLabel);
-
-      const catalogueItem =
-        structuredServices.find(function(item) {
-          const catalogueLabels = [
-            item.service
-          ]
-            .concat(item.aliases || [])
-            .map(normalisePriceLabel);
-
-          return catalogueLabels.some(function(label) {
-            return normalisedLabels.includes(label);
-          });
-        });
-
-      let liveValue = null;
-
-      for (const label of labelsToCheck) {
-        const candidate = Number(
-          pricesByKey[normalisePriceLabel(label)]
-        );
-
-        if (
-          Number.isFinite(candidate) &&
-          candidate > 0
-        ) {
-          liveValue = candidate;
-          break;
-        }
-      }
-
-      if (!liveValue && catalogueItem) {
-        const candidate = Number(
-          catalogueItem.suggestedValue ||
-          catalogueItem.minimumPrice
-        );
-
-        if (
-          Number.isFinite(candidate) &&
-          candidate > 0
-        ) {
-          liveValue = candidate;
-        }
-      }
-
-      if (!liveValue && !catalogueItem) {
-        return service;
-      }
-
-      const fallbackPriceText = liveValue
-        ? "Standard clinic price: " +
-          clinic.currencySymbol +
-          Number(liveValue).toLocaleString()
-        : service.priceText;
-
-      return {
-        ...service,
-
-        estimatedVisitValue:
-          liveValue || service.estimatedVisitValue,
-
-        priceType:
-          catalogueItem?.priceType ||
-          service.priceType ||
-          "Fixed",
-
-        minimumPrice:
-          Number(catalogueItem?.minimumPrice) ||
-          liveValue ||
-          0,
-
-        maximumPrice:
-          Number(catalogueItem?.maximumPrice) ||
-          0,
-
-        consultationFee:
-          Number(catalogueItem?.consultationFee) ||
-          0,
-
-        priceAliases:
-          catalogueItem?.aliases || [],
-
-        priceText:
-          catalogueItem?.publicWording ||
-          fallbackPriceText
-      };
-    })
-  };
-}
-    
 
 async function applyLiveServicePriceToBooking(
   sessionId,
@@ -1645,123 +904,6 @@ async function applyLiveServicePriceToBooking(
   if (service.priceType) {
     booking.livePriceType = service.priceType;
   }
-}
-
-function ensurePatientBooking(sessionId, clinicId = "") {
-  const resolvedClinicId =
-    clinicId ||
-    sessionClinicId[sessionId] ||
-    "";
-
-  if (!patientBookings[sessionId]) {
-    patientBookings[sessionId] = {
-      leadId: "",
-      bookingRecordId: "",
-      clinicId: resolvedClinicId,
-      patientName: "",
-      phone: "",
-      whatsapp: "",
-      email: "",
-      preferredContactMethod: "",
-      serviceId: "",
-      serviceName: "",
-      preferredDate: "",
-      preferredTime: "",
-      bookingStatus: "NEW",
-      estimatedVisitValue: 0,
-      potentialServiceName: "",
-      potentialServiceValueMin: 0,
-      potentialServiceValueMax: 0,
-      humanFollowUpNeeded: false,
-      humanTeamUsed: false,
-      urgency: "NORMAL",
-      summary: "",
-      source: "AI_CHAT",
-      lifecycleStatus: "",
-      reminderStatus: "PENDING_CLINIC_CONFIRMATION",
-      reminderDueAt: "",
-      attendanceCheckDueAt: "",
-      attendanceStatus: "ATTENDANCE_UNVERIFIED",
-      treatmentDecisionCheckDueAt: "",
-      lastPatientReply: "",
-      reminderMessage: "",
-      attendanceMessage: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-  }
-
-  if (!patientBookings[sessionId].clinicId) {
-    patientBookings[sessionId].clinicId = resolvedClinicId;
-  }
-
-  return patientBookings[sessionId];
-}
-
-function getBookingRecordSignature(booking) {
-  return [
-    booking.serviceId || booking.serviceName || "",
-    booking.preferredDate || "",
-    booking.preferredTime || ""
-  ]
-    .map(function(value) {
-      return String(value || "").trim().toLowerCase();
-    })
-    .join("|");
-}
-
-function stableBookingHash(value) {
-  let hash = 2166136261;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return (hash >>> 0)
-    .toString(36)
-    .toUpperCase();
-}
-
-function ensureBookingRecordId(sessionId, clinic) {
-  const booking = ensurePatientBooking(
-    sessionId,
-    clinic?.clinicId || ""
-  );
-
-  if (
-    !booking.serviceName ||
-    !booking.preferredDate ||
-    !booking.preferredTime
-  ) {
-    return "";
-  }
-
-  /*
-    Once created, this booking ID stays fixed
-    for this appointment.
-
-    Updates to date, time, contact details,
-    service details, or patient information
-    continue using the same booking record.
-  */
-  if (!booking.bookingRecordId) {
-    const datePart = booking.preferredDate
-      .replace(/-/g, "")
-      .slice(2);
-
-    const clinicCode =
-      clinic?.clinicCode ||
-      "BOOK";
-
-    booking.bookingRecordId =
-      `${clinicCode}-${datePart}-` +
-      stableBookingHash(
-        `${sessionId}|${booking.createdAt}`
-      ).slice(-6);
-  }
-
-  return booking.bookingRecordId;
 }
 
 function getBookingRecordId(sessionId, booking) {
@@ -2221,165 +1363,171 @@ function updatePatientBookingHeuristically(sessionId, clinicId, text) {
     booking.leadId = createBookingLeadId(clinic, sessionId);
   }
 
-  const email = source.match(/[^\s@]+@[^\s@]+\.[^\s@]+/);
+  const updates = {};
+
+  const email =
+    source.match(
+      /[^\s@]+@[^\s@]+\.[^\s@]+/
+    );
 
   if (email) {
-    booking.email = email[0].replace(/[),.;]+$/g, "");
+    updates.email =
+      email[0].replace(
+        /[),.;]+$/g,
+        ""
+      );
 
-    if (!booking.preferredContactMethod) {
-      booking.preferredContactMethod = "Email";
+    if (
+      !booking.preferredContactMethod
+    ) {
+      updates.preferredContactMethod =
+        "Email";
     }
   }
 
-const phone =
-  source.match(
-    /(\+?\d[\d\s().-]{7,}\d)/
-  );
-
-if (phone) {
-  const number =
-    normalizePhoneForClinic(
-      phone[0].trim(),
-      clinic
+  const phone =
+    source.match(
+      /(\+?\d[\d\s().-]{7,}\d)/
     );
 
-  /*
-    Ignore date-like values and other invalid
-    phone candidates.
+  if (phone) {
+    const number =
+      normalizePhoneForClinic(
+        phone[0].trim(),
+        clinic
+      );
 
-    Most importantly: never overwrite an already
-    valid phone number with an appointment date.
-  */
-  if (number) {
-    const mentionsWhatsApp =
-      /\b(whatsapp|what'?s\s*app|wa)\b/i.test(source);
+    if (number) {
+      const mentionsWhatsApp =
+        /\b(whatsapp|what'?s\s*app|wa)\b/i
+          .test(source);
 
-    const mentionsPhone =
-      /\b(phone|mobile|call|telephone|contact number)\b/i.test(source);
+      const mentionsPhone =
+        /\b(phone|mobile|call|telephone|contact number)\b/i
+          .test(source);
 
-    if (mentionsWhatsApp) {
-      booking.whatsapp = number;
+      if (mentionsWhatsApp) {
+        updates.whatsapp = number;
+        updates.phone =
+          booking.phone || number;
 
-      booking.phone =
-        booking.phone || number;
+        updates.preferredContactMethod =
+          "WhatsApp";
+      } else {
+        updates.phone = number;
 
-      booking.preferredContactMethod =
-        "WhatsApp";
-    } else {
-      booking.phone = number;
-
-      if (
-        mentionsPhone ||
-        !booking.preferredContactMethod
-      ) {
-        booking.preferredContactMethod =
-          "Phone";
+        if (
+          mentionsPhone ||
+          !booking.preferredContactMethod
+        ) {
+          updates.preferredContactMethod =
+            "Phone";
+        }
       }
     }
   }
-}
 
-  if (/\bprefer(?:red)?\s+(?:contact\s+by\s+)?email\b/i.test(source)) {
-    booking.preferredContactMethod = "Email";
-  } else if (
-    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?whatsapp\b/i.test(source)
+  if (
+    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?email\b/i
+      .test(source)
   ) {
-    booking.preferredContactMethod = "WhatsApp";
+    updates.preferredContactMethod =
+      "Email";
   } else if (
-    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?(?:phone|call)\b/i.test(source)
+    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?whatsapp\b/i
+      .test(source)
   ) {
-    booking.preferredContactMethod = "Phone";
+    updates.preferredContactMethod =
+      "WhatsApp";
+  } else if (
+    /\bprefer(?:red)?\s+(?:contact\s+by\s+)?(?:phone|call)\b/i
+      .test(source)
+  ) {
+    updates.preferredContactMethod =
+      "Phone";
   }
 
-  const nameMatch = source.match(
-    /(?:my name is|i am|i'm|this is)\s+([\p{L}' -]{2,40})/iu
-  );
-
-  if (nameMatch) {
-    booking.patientName = nameMatch[1]
-      .replace(/\b(and|my|phone|number|whatsapp|email).*/i, "")
-      .trim();
-  }
-
-  const service = findClinicService(clinic, source);
-
-  if (service) {
-    booking.serviceId = service.id;
-    booking.serviceName = service.name;
-    booking.estimatedVisitValue =
-      service.estimatedVisitValue ||
-      clinic.commercialModel.defaultVisitValue;
-    booking.potentialServiceName =
-      service.potentialServiceName || "";
-    booking.potentialServiceValueMin =
-      service.potentialServiceValueMin || 0;
-    booking.potentialServiceValueMax =
-      service.potentialServiceValueMax || 0;
-    booking.urgency =
-      service.urgent ? "URGENT" : booking.urgency;
-  }
-
-const timeMatches = [
-  ...source.matchAll(
-    /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/gi
-  )
-];
-
-if (timeMatches.length) {
-  /*
-    If the patient mentions an old and a new time,
-    such as "change from 2 PM to 4 PM",
-    the LAST explicit time is the requested destination.
-  */
-  const latestTime =
-    timeMatches[timeMatches.length - 1][0];
-
-  booking.preferredTime =
-    latestTime.toUpperCase();
-}
-
-  const dateMatch = source.match(
-    /\b(today|tomorrow|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/i
-  );
-
-  if (dateMatch) {
-    const resolvedDate = resolveBookingDate(
-      dateMatch[0],
-      clinic.timezone
+  const nameMatch =
+    source.match(
+      /(?:my name is|i am|i'm|this is)\s+([\p{L}' -]{2,40})/iu
     );
 
-    if (resolvedDate) {
-      booking.preferredDate = resolvedDate;
+  if (nameMatch) {
+    updates.patientName =
+      nameMatch[1]
+        .replace(
+          /\b(and|my|phone|number|whatsapp|email).*/i,
+          ""
+        )
+        .trim();
+  }
+
+  const service =
+    findClinicService(
+      clinic,
+      source
+    );
+
+  if (service) {
+    updates.serviceId =
+      service.id;
+
+    updates.serviceName =
+      service.name;
+
+    if (service.urgent) {
+      updates.urgency =
+        "URGENT";
     }
   }
 
-  if (/\b(book|appointment|schedule|reserve|slot)\b/i.test(lower)) {
-    booking.bookingStatus = "BOOKING_REQUESTED";
+  const timeMatches = [
+    ...source.matchAll(
+      /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/gi
+    )
+  ];
+
+  if (timeMatches.length) {
+    const latestTime =
+      timeMatches[
+        timeMatches.length - 1
+      ][0];
+
+    updates.preferredTime =
+      latestTime.toUpperCase();
   }
 
-  const hasContact =
-    booking.phone ||
-    booking.whatsapp ||
-    booking.email;
+  const dateMatch =
+    source.match(
+      /\b(today|tomorrow|next\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{4}-\d{2}-\d{2}|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/i
+    );
 
-  if (booking.patientName && hasContact) {
-    booking.bookingStatus =
-      booking.bookingStatus === "NEW"
-        ? "CONTACT_CAPTURED"
-        : booking.bookingStatus;
+  if (dateMatch) {
+    updates.preferredDate =
+      dateMatch[0];
   }
 
   if (
-    booking.serviceName &&
-    booking.preferredDate &&
-    booking.preferredTime
+    /\b(book|appointment|schedule|reserve|slot)\b/i
+      .test(lower)
   ) {
-    booking.bookingStatus = "AWAITING_CLINIC";
-    booking.humanFollowUpNeeded = true;
+    updates.bookingStatus =
+      "BOOKING_REQUESTED";
   }
 
-  refreshBookingFollowUpPlan(booking, clinic);
-  booking.updatedAt = new Date().toISOString();
+  applyBookingUpdate({
+    booking,
+    clinic,
+    updates,
+    resolveBookingDate
+  });
+
+  refreshBookingFollowUpPlan(
+    booking,
+    clinic
+  );
+
+  
 }
 
 function findLatestExplicitPatientTime(sessionId) {
@@ -2770,91 +1918,6 @@ function formatTranscript(session) {
     .join("\n\n");
 }
 
-async function sendTelegramTo(chatId, text) {
-  if (!TELEGRAM_BOT_TOKEN || !chatId) {
-    console.error("Telegram configuration missing:", {
-      hasBotToken: Boolean(TELEGRAM_BOT_TOKEN),
-      chatId: chatId || "missing"
-    });
-
-    return {
-      ok: false,
-      error: "Telegram token or chat ID missing"
-    };
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-          chat_id: String(chatId).trim(),
-          text: String(text).slice(0, 3900)
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok || !data.ok) {
-      console.error(
-        "Telegram API rejected message:",
-        JSON.stringify(data, null, 2)
-      );
-
-      return {
-        ok: false,
-        status: response.status,
-        data
-      };
-    }
-
-    console.log(
-      "Telegram message delivered:",
-      chatId,
-      data.result?.message_id
-    );
-
-    return {
-      ok: true,
-      data
-    };
-
-  } catch (error) {
-    console.error(
-      "Telegram delivery exception:",
-      error
-    );
-
-    return {
-      ok: false,
-      error: error.message
-    };
-  }
-}
-
-async function sendTelegram(text) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.log("Telegram env vars missing.");
-    return;
-  }
-
-  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: text.slice(0, 3900)
-    })
-  });
-}
-
 async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, transcript }) {
   if (!GOOGLE_SCRIPT_URL) {
     console.log("Google Script URL missing.");
@@ -2862,10 +1925,10 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
   }
 
   try {
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const sheetsResult =
+      await postJsonToGoogleSheets(
+        GOOGLE_SCRIPT_URL,
+        {
   sessionId,
 
   clinic: clinicProfiles[sessionId]?.clinicName || "",
@@ -2880,12 +1943,13 @@ async function saveLeadToGoogleSheets({ sessionId, profileContext, summary, tran
   transcript,
 
   timestamp: new Date().toISOString()
-      })
-    });
+      }
+      );
 
-    if (!response.ok) {
+    if (!sheetsResult.ok) {
       throw new Error(
-        `Google Sheets webhook returned ${response.status}`
+        sheetsResult.result?.error ||
+        `Google Sheets webhook returned ${sheetsResult.status || "unknown"}`
       );
     }
 
@@ -3734,128 +2798,29 @@ async function extractPatientBookingWithAI(sessionId) {
     const raw = data.choices?.[0]?.message?.content || "{}";
     const extracted = JSON.parse(raw);
 
-    for (const key of [
-      "patientName",
-      "phone",
-      "whatsapp",
-      "email",
-      "summary"
-    ]) {
-      if (
-        typeof extracted[key] === "string" &&
-        extracted[key].trim()
-      ) {
-        booking[key] = extracted[key].trim();
-      }
-    }
-
-    if (
-      ["Phone", "WhatsApp", "Email"].includes(
-        extracted.preferredContactMethod
-      )
-    ) {
-      booking.preferredContactMethod =
-        extracted.preferredContactMethod;
-    }
-
     const latestExplicitPatientTime =
       findLatestExplicitPatientTime(sessionId);
 
-    if (latestExplicitPatientTime) {
-      booking.preferredTime = latestExplicitPatientTime;
-    }
+    const updates = {
+      ...extracted,
+      preferredTime:
+        latestExplicitPatientTime ||
+        extracted.preferredTime
+    };
 
-    if (
-      typeof extracted.preferredDate === "string" &&
-      extracted.preferredDate.trim()
-    ) {
-      const resolvedDate = resolveBookingDate(
-        extracted.preferredDate.trim(),
-        clinic.timezone
-      );
+    applyBookingUpdate({
+      booking,
+      clinic,
+      updates,
+      resolveBookingDate
+    });
 
-      if (resolvedDate) {
-        booking.preferredDate = resolvedDate;
-      }
-    }
-
-    if (
-      ["NEW", "CONTACT_CAPTURED", "BOOKING_REQUESTED", "AWAITING_CLINIC"]
-        .includes(extracted.bookingStatus)
-    ) {
-      booking.bookingStatus = extracted.bookingStatus;
-    }
-
-    if (["NORMAL", "URGENT"].includes(extracted.urgency)) {
-      booking.urgency = extracted.urgency;
-    }
-
-    const service = (clinic.services || []).find(item =>
-      item.id === extracted.serviceId ||
-      item.name.toLowerCase() ===
-        String(extracted.serviceName || "").toLowerCase()
+    refreshBookingFollowUpPlan(
+      booking,
+      clinic
     );
 
-    if (service) {
-      booking.serviceId = service.id;
-      booking.serviceName = service.name;
-      booking.estimatedVisitValue =
-        service.estimatedVisitValue ||
-        clinic.commercialModel.defaultVisitValue;
-      booking.potentialServiceName =
-        service.potentialServiceName || "";
-      booking.potentialServiceValueMin =
-        service.potentialServiceValueMin || 0;
-      booking.potentialServiceValueMax =
-        service.potentialServiceValueMax || 0;
-
-      if (service.urgent) {
-        booking.urgency = "URGENT";
-      }
-    }
-
-    if (booking.whatsapp && !booking.phone) {
-      booking.phone = booking.whatsapp;
-    }
-
-    if (!booking.preferredContactMethod) {
-      booking.preferredContactMethod =
-        booking.whatsapp
-          ? "WhatsApp"
-          : booking.phone
-            ? "Phone"
-            : booking.email
-              ? "Email"
-              : "";
-    }
-
-    const hasContact =
-      booking.phone ||
-      booking.whatsapp ||
-      booking.email;
-
-    if (
-      booking.patientName &&
-      hasContact &&
-      booking.bookingStatus === "NEW"
-    ) {
-      booking.bookingStatus = "CONTACT_CAPTURED";
-    }
-
-    if (
-      booking.serviceName &&
-      booking.preferredDate &&
-      booking.preferredTime
-    ) {
-      booking.bookingStatus = "AWAITING_CLINIC";
-
-    }
-
-    booking.humanFollowUpNeeded =
-      booking.bookingStatus === "AWAITING_CLINIC";
-
-    refreshBookingFollowUpPlan(booking, clinic);
-    booking.updatedAt = new Date().toISOString();
+    
   } catch (error) {
     console.error(
       "Patient booking extraction error:",
@@ -3877,8 +2842,7 @@ async function saveBookingToGoogleSheets(
   if (!clinic) return;
 
   const intakeUrl =
-    clinic.googleSheets?.intakeUrl ||
-    GOOGLE_SCRIPT_URL;
+    clinic.googleSheets?.intakeUrl;
 
   if (!intakeUrl) {
     console.log(
@@ -3922,12 +2886,10 @@ async function saveBookingToGoogleSheets(
   }
   
   try {
-    const response = await fetch(intakeUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
+    const sheetsResult =
+      await postJsonToGoogleSheets(
+        intakeUrl,
+        {
         recordType: "PATIENT_BOOKING",
         source: booking.source || "AI_CHAT",
         timestamp: new Date().toISOString(),
@@ -3994,17 +2956,21 @@ async function saveBookingToGoogleSheets(
         transcript: formatTranscript(
           sessions[sessionId] || []
         )
-      })
-    });
+      }
+      );
 
-const result = await response.json().catch(() => null);
+    const result =
+      sheetsResult.result;
 
-if (!response.ok || !result?.success) {
-  throw new Error(
-    result?.error ||
-    `Google Sheets webhook returned ${response.status}`
-  );
-}
+    if (
+      !sheetsResult.ok ||
+      !result?.success
+    ) {
+      throw new Error(
+        result?.error ||
+        `Google Sheets webhook returned ${sheetsResult.status || "unknown"}`
+      );
+    }
 
 console.log(
   "Booking saved to clinic sheet:",
@@ -4035,7 +3001,18 @@ async function saveMissedCallToGoogleSheets({
   transcript,
   summary
 }) {
-  if (!GOOGLE_SCRIPT_URL || !clinic) return;
+  if (!clinic) return;
+
+  const intakeUrl =
+    clinic.googleSheets?.intakeUrl;
+
+  if (!intakeUrl) {
+    console.log(
+      "Missed-call Google Sheets URL missing for:",
+      clinicId
+    );
+    return;
+  }
 
   const stableCallId =
     callSid ||
@@ -4050,10 +3027,10 @@ async function saveMissedCallToGoogleSheets({
         .slice(-10)
         .toUpperCase()}`;
 
-  const response = await fetch(GOOGLE_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const sheetsResult =
+    await postJsonToGoogleSheets(
+      intakeUrl,
+      {
       recordType: "MISSED_CALL",
       source: "MISSED_CALL",
       timestamp: new Date().toISOString(),
@@ -4075,12 +3052,13 @@ async function saveMissedCallToGoogleSheets({
       callSid: callSid || "",
       callStatus: callStatus || "MISSED_CALL",
       callDuration: callDuration || ""
-    })
-  });
+    }
+    );
 
-  if (!response.ok) {
+  if (!sheetsResult.ok) {
     throw new Error(
-      `Google Sheets webhook returned ${response.status}`
+      sheetsResult.result?.error ||
+      `Google Sheets webhook returned ${sheetsResult.status || "unknown"}`
     );
   }
 }
@@ -4248,125 +3226,8 @@ async function maybeSendHumanHandoffAlert(sessionId, latestUserText) {
   );
 }
 
-async function finalizePatientBooking(
-  sessionId,
-  clinic,
-  options = {}
-) {
-  const booking =
-    ensurePatientBooking(
-      sessionId,
-      clinic.clinicId
-    );
-
-booking.phone =
-  normalizePhoneForClinic(
-    booking.phone,
-    clinic
-  );
-
-booking.whatsapp =
-  normalizePhoneForClinic(
-    booking.whatsapp,
-    clinic
-  );
-  
-const hasContact =
-  Boolean(
-    booking.phone ||
-    booking.whatsapp ||
-    booking.email
-  );
-
-if (
-  !booking.patientName ||
-  !hasContact ||
-  !booking.serviceName ||
-  !booking.preferredDate ||
-  !booking.preferredTime
-) {
-  return {
-    success: false,
-    reason: "MISSING_REQUIRED_BOOKING_DETAILS"
-  };
-}
-
-  /*
-    Capture ONE canonical booking ID for this
-    entire finalization transaction.
-  */
-  const bookingRecordId =
-    ensureBookingRecordId(
-      sessionId,
-      clinic
-    );
-
-  if (!bookingRecordId) {
-    return {
-      success: false,
-      reason: "INVALID_BOOKING"
-    };
-  }
-
-  await applyLiveServicePriceToBooking(
-    sessionId,
-    clinic
-  );
-
-  const telegramChatId =
-    clinic.telegram?.bookingChatId;
-
-  if (!telegramChatId) {
-    return {
-      success: false,
-      reason: "TELEGRAM_DESTINATION_MISSING",
-      bookingRecordId
-    };
-  }
-
-  /*
-    Build Telegram using the SAME captured ID.
-  */
-const message =
-  createBookingTelegramCard(
-    sessionId,
-    bookingRecordId,
-    options
-  );
-
-  if (!message) {
-    return {
-      success: false,
-      reason: "BOOKING_CARD_FAILED",
-      bookingRecordId
-    };
-  }
-
-  /*
-    Save Sheets using the SAME captured ID.
-  */
-  await saveBookingToGoogleSheets(
-    sessionId,
-    bookingRecordId
-  );
-
-  await sendTelegramTo(
-    telegramChatId,
-    message
-  );
-
-  console.log(
-    "Booking finalized:",
-    clinic.clinicName,
-    bookingRecordId,
-    sessionId
-  );
-
-  return {
-    success: true,
-    bookingRecordId
-  };
-}
+const finalizePatientBooking =
+  bookingFinalizerFinalizePatientBooking;
 
 async function maybeSendBookingAlert(sessionId, latestUserText) {
   const clinicId = sessionClinicId[sessionId] || "pearlsmile";
@@ -4452,97 +3313,6 @@ console.log(
 );
 }
 
-function normalizeGenericPhone(value) {
-  const raw = String(value || "").trim();
-
-  if (!raw) return "";
-
-  // Reject obvious appointment dates accidentally put in contact fields.
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    return "";
-  }
-
-  return raw;
-}
-
-
-function normalizeThaiPhone(value) {
-  const raw = String(value || "").trim();
-
-  if (!raw) return "";
-
-  // Reject obvious appointment dates accidentally put in contact fields.
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    return "";
-  }
-
-  const digits = raw.replace(/\D/g, "");
-
-  // +66 98 925 2310
-  // 66989252310
-  if (
-    digits.startsWith("66") &&
-    digits.length === 11
-  ) {
-    const local = digits.slice(2);
-
-    return (
-      "+66 " +
-      local.slice(0, 2) +
-      " " +
-      local.slice(2, 5) +
-      " " +
-      local.slice(5)
-    );
-  }
-
-  // 0989252310
-  if (
-    digits.startsWith("0") &&
-    digits.length === 10
-  ) {
-    const local = digits.slice(1);
-
-    return (
-      "+66 " +
-      local.slice(0, 2) +
-      " " +
-      local.slice(2, 5) +
-      " " +
-      local.slice(5)
-    );
-  }
-
-  // 989252310
-  if (digits.length === 9) {
-    return (
-      "+66 " +
-      digits.slice(0, 2) +
-      " " +
-      digits.slice(2, 5) +
-      " " +
-      digits.slice(5)
-    );
-  }
-
-  // Unknown format: preserve rather than invent.
-  return raw;
-}
-
-
-function normalizePhoneForClinic(value, clinic) {
-  const countryCode =
-    String(clinic?.countryCode || "")
-      .trim()
-      .toUpperCase();
-
-  if (countryCode === "TH") {
-    return normalizeThaiPhone(value);
-  }
-
-  return normalizeGenericPhone(value);
-}
-
 app.post("/voice-booking", async function (req, res) {
   const sessionId =
     String(req.body?.sessionId || "").trim();
@@ -4567,7 +3337,7 @@ app.post("/voice-booking", async function (req, res) {
 
   try {
     const {
-      clinicId = "pattaya-smile",
+      clinicId: requestedClinicId = "",
 
       bookingAction = "update",
 
@@ -4587,7 +3357,19 @@ app.post("/voice-booking", async function (req, res) {
       });
     }
 
-    const clinic = getClinicConfig(clinicId);
+    await hydrateBookingSessionSafely(
+      sessionId
+    );
+
+    const clinicId =
+      String(
+        requestedClinicId || ""
+      ).trim() ||
+      sessionClinicId[sessionId] ||
+      "pattaya-smile";
+
+    const clinic =
+      getClinicConfig(clinicId);
 
     if (!clinic) {
       return res.status(400).json({
@@ -4605,74 +3387,15 @@ app.post("/voice-booking", async function (req, res) {
         clinicId
       );
 
-const incomingPatientName =
-  String(patientName || "")
-    .trim()
-    .toLowerCase();
+applyBookingLifecycleDecision({
+  booking,
+  bookingAction,
+  patientName,
+  service,
+  requestedDate,
+  requestedTime
+});
 
-const existingPatientName =
-  String(booking.patientName || "")
-    .trim()
-    .toLowerCase();
-
-const incomingService =
-  String(service || "")
-    .trim()
-    .toLowerCase();
-
-const existingService =
-  String(booking.serviceName || "")
-    .trim()
-    .toLowerCase();
-
-const incomingDate =
-  String(requestedDate || "").trim();
-
-const existingDate =
-  String(booking.preferredDate || "").trim();
-
-const incomingTime =
-  String(requestedTime || "")
-    .trim()
-    .toLowerCase();
-
-const existingTime =
-  String(booking.preferredTime || "")
-    .trim()
-    .toLowerCase();
-
-const isClearlyDifferentBooking =
-  bookingAction === "create" &&
-  booking.bookingRecordId &&
-  (
-    (
-      incomingPatientName &&
-      existingPatientName &&
-      incomingPatientName !== existingPatientName
-    ) ||
-    (
-      incomingService &&
-      existingService &&
-      incomingService !== existingService
-    ) ||
-    (
-      incomingDate &&
-      existingDate &&
-      incomingDate !== existingDate
-    ) ||
-    (
-      incomingTime &&
-      existingTime &&
-      incomingTime !== existingTime
-    )
-  );
-
-if (isClearlyDifferentBooking) {
-  booking.bookingRecordId = "";
-  booking.createdAt =
-    new Date().toISOString();
-}
-    
   /*
   Voice booking lifecycle:
 
@@ -4726,6 +3449,12 @@ if (isClearlyDifferentBooking) {
       structuredBookingText
     );
 
+    await saveBookingSessionSafely(
+      sessionId,
+      clinicId,
+      patientBookings[sessionId]
+    );
+
 const result =
   await finalizePatientBooking(
     sessionId,
@@ -4744,6 +3473,12 @@ if (!result.success) {
       "Booking could not be finalized"
   });
 }
+
+await saveBookingSessionSafely(
+  sessionId,
+  clinicId,
+  patientBookings[sessionId]
+);
 
 return res.json({
   success: true,
@@ -5038,6 +3773,8 @@ app.post("/booking-followup-response", async (req, res) => {
       });
     }
 
+    await hydrateBookingSessionSafely(sessionId);
+
     const clinicId =
       sessionClinicId[sessionId] ||
       req.body.clinicId ||
@@ -5069,6 +3806,12 @@ app.post("/booking-followup-response", async (req, res) => {
 
     booking.updatedAt = new Date().toISOString();
     refreshBookingFollowUpPlan(booking, clinic);
+    await saveBookingSessionSafely(
+      sessionId,
+      clinicId,
+      booking
+    );
+
     await saveBookingToGoogleSheets(sessionId);
 
     const telegramChatId = clinic.telegram?.bookingChatId;
@@ -5352,8 +4095,18 @@ app.post("/booking-chat", async (req, res) => {
       req.body.sessionId ||
       `booking_${Date.now()}`;
 
+    const requestedClinicId =
+      String(
+        req.body.clinicId || ""
+      ).trim();
+
+    await hydrateBookingSessionSafely(
+      sessionId
+    );
+
     const clinicId =
-      req.body.clinicId ||
+      requestedClinicId ||
+      sessionClinicId[sessionId] ||
       "pearlsmile";
 
     const clinic =
@@ -5416,6 +4169,12 @@ app.post("/booking-chat", async (req, res) => {
         console.error("Human-mode booking pipeline error:", error.message);
       }
 
+      await saveBookingSessionSafely(
+        sessionId,
+        clinicId,
+        patientBookings[sessionId]
+      );
+
       return res.json({
         reply:
           "Our clinic team has joined this chat. Please give them a moment to reply. ðŸ™",
@@ -5475,6 +4234,12 @@ if (needsHumanHandoff) {
     } catch (error) {
       console.error("Live inbox AI-message save error:", error.message);
     }
+
+    await saveBookingSessionSafely(
+      sessionId,
+      clinicId,
+      patientBookings[sessionId]
+    );
 
     res.json({
       reply,
@@ -5922,4 +4687,26 @@ app.get("/live-chat/:sessionId", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+if (require.main === module) {
+  app.listen(
+    PORT,
+    () =>
+      console.log(
+        `Server running on port ${PORT}`
+      )
+  );
+}
+
+module.exports = {
+  app,
+  getClinicConfig,
+  ensurePatientBooking,
+  setSessionClinicIdForTest(
+    sessionId,
+    clinicId
+  ) {
+    sessionClinicId[sessionId] = clinicId;
+  },
+  finalizePatientBooking
+};
