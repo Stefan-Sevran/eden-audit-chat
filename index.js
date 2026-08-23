@@ -3714,13 +3714,27 @@ if (
     const data = await response.json();
     console.log("OpenAI response:", JSON.stringify(data, null, 2));
 
+    if (!response.ok) {
+      const upstreamMessage =
+        data?.error?.message ||
+        "OpenAI request failed";
+
+      console.error(
+        "OpenAI response error:",
+        response.status,
+        upstreamMessage
+      );
+
+      return "I'm sorry, I'm having trouble connecting right now. Please try again shortly.";
+    }
+
     let reply =
       data.output_text ||
       data.output?.[0]?.content?.[0]?.text ||
       data.output?.[1]?.content?.[0]?.text;
 
     if (!reply || reply.trim() === "") {
-      reply = "Got you Ã°Å¸ËœÅ  what would you like help with?";
+      reply = "Got you. What would you like help with?";
     }
 
     sessions[sessionId].push({
@@ -3735,13 +3749,13 @@ if (
     return reply.trim();
   } catch (error) {
     console.error("OpenAI error:", error);
-    return "One sec Ã°Å¸ËœÅ  let me check that for you.";
+    return "One sec. Let me check that for you.";
   }
 }
 
 async function sendMessage(senderId, text) {
   if (!text || text.trim() === "") {
-    text = "Hi Ã°Å¸ËœÅ  how can I help you today?";
+    text = "Hi. How can I help you today?";
   }
 
   const response = await fetch(
