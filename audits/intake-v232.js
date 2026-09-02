@@ -1,0 +1,75 @@
+const {QUESTIONS,buildInterview,confirmationRows,inferCurrency}=require('./interview');
+
+const VERSION='2.3.2';
+const ANSWER_IDS=QUESTIONS.map(x=>x.id);
+const BASIC_IDS=['clinicType','clinicName','clinicLocation','websiteUrl'];
+const CONTACT_IDS=['contactName','email','whatsapp'];
+const UPDATE_IDS=[...BASIC_IDS,'currency',...ANSWER_IDS,...CONTACT_IDS];
+const QUESTION_BY_ID=Object.fromEntries(QUESTIONS.map(x=>[x.id,x]));
+
+function text(value){return String(value??'').trim();}
+function safeSessionId(value){const id=text(value);return /^[a-zA-Z0-9_-]{12,160}$/.test(id)?id:null;}
+function yesLike(value){return /^(?:yes|yep|yeah|correct|confirmed|confirm|that'?s right|looks right|accurate|โอเค|ใช่)(?:[,.! ]|$)/i.test(text(value));}
+function clone(value){return JSON.parse(JSON.stringify(value));}
+function display(value){return value==null||value===''?'Not provided':typeof value==='object'?`${value.low}–${value.high}`:String(value);}
+function normalizeUrl(value){let v=text(value);if(!v)return '';if(/^(?:none|no website|n\/a)$/i.test(v))return 'No website supplied';if(!/^https?:\/\//i.test(v)&&/\./.test(v))v=`https://${v}`;try{const url=new URL(v);return ['http:','https:'].includes(url.protocol)?url.toString():v;}catch{return v;}}
+function createState(sessionId){return {schemaVersion:VERSION,sessionId,fields:{},answers:{},answered:{},ownerConfirmed:false,awaitingConfirmation:false,delivered:false,notified:false,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};}
+function cleanUpdates(updates={}){const out={};for(const id of UPDATE_IDS){if(updates[id]===undefined||updates[id]===null)continue;const value=text(updates[id]);if(value!=='')out[id]=id==='websiteUrl'?normalizeUrl(value):value;}return out;}
+function applyUpdates(state,payload={}){
+  const updates=cleanUpdates(payload.updates||payload);
+  for(const [id,value] of Object.entries(updates)){
+    if(ANSWER_IDS.includes(id)){state.answers[id]=value;state.answered[id]=true;}
+    else state.fields[id]=value;
+  }
+  for(const id of Array.isArray(payload.answeredFields)?payload.answeredFields:[]){if(ANSWER_IDS.includes(id))state.answered[id]=true;}
+  state.updatedAt=new Date().toISOString();return state;
+}
+function missingFields(state){
+  const missing=BASIC_IDS.filter(id=>!text(state.fields[id]));
+  for(const id of ANSWER_IDS)if(!state.answered[id])missing.push(id);
+  return missing;
+}
+function nextQuestion(id){
+  const map={clinicType:'What type of clinic do you run?',clinicName:'What is the clinic’s name?',clinicLocation:'Which city and country is the clinic in?',websiteUrl:'What is the clinic website or main public page?',monthlyWebFormInquiries:QUESTION_BY_ID.monthlyWebFormInquiries.prompt,monthlyMessengerTextInquiries:QUESTION_BY_ID.monthlyMessengerTextInquiries.prompt,monthlyMissedDelayedInquiries:QUESTION_BY_ID.monthlyMissedDelayedInquiries.prompt,monthlyMissedCalls:QUESTION_BY_ID.monthlyMissedCalls.prompt,leadToBookingRate:QUESTION_BY_ID.leadToBookingRate.prompt,attendanceRate:QUESTION_BY_ID.attendanceRate.prompt,averageNewPatientValue:QUESTION_BY_ID.averageNewPatientValue.prompt,contact:'Where should Eden send the private Audit—email or WhatsApp?'};
+  return map[id]||'Could you tell me a little more about the clinic?';
+}
+function buildSnapshot(state){
+  const currency=text(state.fields.currency)||inferCurrency(state.fields.clinicLocation,'')||'';
+  const interview=buildInterview({clinic:{websiteUrl:state.fields.websiteUrl,clinicName:state.fields.clinicName,clinicLocation:state.fields.clinicLocation,currency},answers:state.answers,confirmed:state.ownerConfirmed,mode:'owner-interview'});
+  const missing=missingFields(state);const structurallyComplete=missing.length===0;const ready=structurallyComplete&&interview.errors.length===0;
+  const contactAvailable=!!(text(state.fields.email)||text(state.fields.whatsapp));
+  return {schemaVersion:VERSION,sessionId:state.sessionId,status:state.delivered?'intake-complete':state.ownerConfirmed&&!contactAvailable?'awaiting-delivery-contact':state.ownerConfirmed?'confirmed':ready?'ready-for-confirmation':'collecting',fields:clone(state.fields),answers:clone(state.answers),answered:clone(state.answered),ownerConfirmed:state.ownerConfirmed,missingFields:missing,validationErrors:clone(interview.errors),nextQuestion:missing.length?nextQuestion(missing[0]):interview.errors.length?`I noticed one conflict: ${interview.errors[0]} Which figure should I correct?`:state.ownerConfirmed&&!contactAvailable?nextQuestion('contact'):null,readyForConfirmation:ready,contactAvailable,interview,rows:confirmationRows(interview)};
+}
+function confirmationText(snapshot){
+  const f=snapshot.fields,i=snapshot.interview;const lines=[`Clinic: ${f.clinicName||'Not provided'} · ${f.clinicType||'Clinic'} · ${f.clinicLocation||'Location not provided'}`,`Public page: ${f.websiteUrl||'Not provided'}`];
+  for(const row of snapshot.rows)lines.push(`${row.label}: ${row.display}`);
+  if(i.assumptions.length)lines.push('Any missing rates remain clearly labelled as Eden scenario assumptions.');
+  return `Before I prepare the Audit, please confirm these working estimates:\n\n${lines.join('\n')}\n\nAre these fair estimates for the Audit?`;
+}
+function modelPrompt(state){const snapshot=buildSnapshot(state);return `You are Mia, Eden Clinic Network's warm Clinic Revenue Audit Specialist speaking with a clinic owner.\n\nYour job is to conduct a short natural conversation and collect clinic facts without sounding like a form. React briefly to the owner's last answer, then ask exactly ONE next question. Never invent a number or clinic fact. Accept approximate values, ranges, percentages, and “not sure”. Monthly figures must be monthly; clarify if the owner gives an unclear period.\n\nReturn ONLY JSON with this exact shape:\n{"reply":"short natural reply","updates":{},"answeredFields":[],"ownerConfirmed":false}\n\nAllowed update keys: ${UPDATE_IDS.join(', ')}. All update values must be strings. answeredFields may contain only: ${ANSWER_IDS.join(', ')}. Add a field to answeredFields when the owner gave a value OR explicitly said they do not know. ownerConfirmed may be true only if the owner explicitly confirms a summary that Mia previously presented.\n\nCurrent structured state:\n${JSON.stringify(snapshot)}\n\nPreferred next question if still missing information:\n${snapshot.nextQuestion||'Summarize and ask for confirmation.'}`;}
+async function defaultModelTurn({apiKey,history,state,fetchImpl}){
+  if(!apiKey)throw new Error('OPENAI_API_KEY is not configured');
+  const response=await fetchImpl('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:process.env.EDEN_AUDIT_INTAKE_MODEL||'gpt-4o-mini',temperature:.1,response_format:{type:'json_object'},messages:[{role:'system',content:modelPrompt(state)},...history.slice(-24)]})});
+  const data=await response.json();if(!response.ok)throw new Error(data?.error?.message||'Audit intake model request failed');return JSON.parse(data.choices?.[0]?.message?.content||'{}');
+}
+function realtimeTool(){return {type:'function',name:'save_clinic_audit_progress',description:'Save every clinic fact or operating estimate the owner supplies. Call this after each material answer and again when the owner explicitly confirms the final summary.',parameters:{type:'object',properties:{clinicType:{type:'string'},clinicName:{type:'string'},clinicLocation:{type:'string'},websiteUrl:{type:'string'},currency:{type:'string'},monthlyWebFormInquiries:{type:'string'},monthlyMessengerTextInquiries:{type:'string'},monthlyMissedDelayedInquiries:{type:'string'},monthlyMissedCalls:{type:'string'},leadToBookingRate:{type:'string'},attendanceRate:{type:'string'},averageNewPatientValue:{type:'string'},contactName:{type:'string'},email:{type:'string'},whatsapp:{type:'string'},answeredFields:{type:'array',items:{type:'string',enum:ANSWER_IDS}},ownerConfirmed:{type:'boolean'},confirmationEvidence:{type:'string',description:'The owner’s exact spoken confirmation words. Required when ownerConfirmed is true.'}},additionalProperties:false}};}
+function realtimeInstructions(snapshot){return `You are Mia, Eden Clinic Network's Clinic Revenue Audit Specialist speaking aloud with a clinic owner. Be warm, natural, commercially sharp, and concise. Ask only one question at a time. Never sound like a survey. Never invent clinic facts, traffic, conversion, revenue, hours, prices, or availability. Accept ranges and “not sure”. Speak English by default and lightly mirror the owner's language when appropriate.\n\nUse save_clinic_audit_progress after every material owner answer. The tool output tells you what is still missing. Follow that output. When all questions are answered, read a concise summary and ask whether it is fair. Set ownerConfirmed true only after explicit confirmation. Then request an email or WhatsApp destination if still missing. Do not claim the Audit report is finished; say Eden will scan the clinic, review the evidence, and prepare a private Audit.\n\nCurrent state:\n${JSON.stringify(snapshot)}`;}
+
+function createAuditIntake({openaiApiKey='',fetchImpl=global.fetch,modelTurn=null,onConfirmed=async()=>({ok:true})}={}){
+  const states={},histories={};
+  const ensure=id=>{if(!states[id])states[id]=createState(id);if(!histories[id])histories[id]=[];return states[id];};
+  async function maybeComplete(state){const snapshot=buildSnapshot(state);if(!state.ownerConfirmed||!snapshot.contactAvailable||state.notified)return snapshot;state.notified=true;try{await onConfirmed({sessionId:state.sessionId,snapshot,history:clone(histories[state.sessionId]||[])});state.delivered=true;}catch(error){state.notified=false;throw error;}return buildSnapshot(state);}
+  async function handleText({sessionId,message}){const id=safeSessionId(sessionId);if(!id)throw new Error('A valid Audit session ID is required.');const user=text(message);if(!user)throw new Error('A message is required.');const state=ensure(id);const history=histories[id];history.push({role:'user',content:user});const turn=await (modelTurn?modelTurn({history:clone(history),state:clone(state)}):defaultModelTurn({apiKey:openaiApiKey,history,state,fetchImpl}));applyUpdates(state,turn);let snapshot=buildSnapshot(state);if(state.awaitingConfirmation&&turn.ownerConfirmed===true&&yesLike(user))state.ownerConfirmed=true;else if(turn.ownerConfirmed===true&&snapshot.readyForConfirmation&&yesLike(user))state.ownerConfirmed=true;snapshot=buildSnapshot(state);
+    let reply=text(turn.reply)||snapshot.nextQuestion||'Thank you. Let me confirm what I have.';
+    if(snapshot.readyForConfirmation&&!state.ownerConfirmed){state.awaitingConfirmation=true;reply=confirmationText(snapshot);}else if(state.ownerConfirmed&&!snapshot.contactAvailable){reply='Perfect—I have the confirmed Audit inputs. Where should Eden send the private report: email or WhatsApp?';}else if(state.ownerConfirmed&&snapshot.contactAvailable){snapshot=await maybeComplete(state);reply='Thank you—your Audit intake is complete. Eden will now scan the clinic, review the evidence, and prepare your private Clinic Revenue Audit Report.';}
+    history.push({role:'assistant',content:reply});histories[id]=history.slice(-50);return {reply,snapshot};}
+  async function handleVoice({sessionId,payload}){const id=safeSessionId(sessionId);if(!id)throw new Error('A valid Audit session ID is required.');const state=ensure(id);applyUpdates(state,{updates:payload,answeredFields:payload.answeredFields});let snapshot=buildSnapshot(state);if(payload.ownerConfirmed===true&&snapshot.readyForConfirmation&&yesLike(payload.confirmationEvidence))state.ownerConfirmed=true;snapshot=buildSnapshot(state);if(state.ownerConfirmed&&snapshot.contactAvailable)snapshot=await maybeComplete(state);return {success:true,snapshot,summary:snapshot.readyForConfirmation?confirmationText(snapshot):null,instruction:snapshot.ownerConfirmed&&snapshot.contactAvailable?'Thank the owner and explain that Eden will scan, review, and prepare the private Audit.':snapshot.ownerConfirmed?'Ask where to send the private Audit: email or WhatsApp.':snapshot.readyForConfirmation?'Read the concise summary, then ask the owner to confirm it.':snapshot.nextQuestion};}
+  function install(app,expressLib){
+    app.post('/audit-chat',async(req,res)=>{try{const result=await handleText(req.body||{});res.json({reply:result.reply,sessionId:result.snapshot.sessionId,intakeStatus:result.snapshot.status,readyForConfirmation:result.snapshot.readyForConfirmation,confirmed:result.snapshot.ownerConfirmed});}catch(error){const clientError=/required/i.test(String(error.message||error));if(!clientError)console.error('Audit intake chat error:',error);res.status(clientError?400:500).json({reply:clientError?'Please refresh the Audit page and try again.':'Small connection issue. Please try again in a moment.',error:clientError?'invalid_audit_request':'audit_intake_unavailable'});}});
+    app.post('/audit-voice-intake',async(req,res)=>{try{const result=await handleVoice({sessionId:req.body?.sessionId,payload:req.body||{}});res.json(result);}catch(error){console.error('Audit voice intake error:',error);res.status(400).json({success:false,error:String(error.message||error)});}});
+    app.post('/audit-realtime-call',expressLib.text({type:'application/sdp'}),async(req,res)=>{try{if(!openaiApiKey)return res.status(500).send('OPENAI_API_KEY is not configured');const id=safeSessionId(req.query.sessionId);if(!id)return res.status(400).send('A valid sessionId is required');const snapshot=buildSnapshot(ensure(id));const form=new FormData();form.append('sdp',req.body);form.append('session',JSON.stringify({type:'realtime',model:'gpt-realtime',output_modalities:['audio'],tools:[realtimeTool()],tool_choice:'auto',audio:{output:{voice:process.env.EDEN_AUDIT_VOICE||'marin'}},instructions:realtimeInstructions(snapshot)}));const upstream=await fetchImpl('https://api.openai.com/v1/realtime/calls',{method:'POST',headers:{Authorization:`Bearer ${openaiApiKey}`},body:form});const body=await upstream.text();if(!upstream.ok)return res.status(upstream.status).send(body);res.status(201).type('application/sdp').send(body);}catch(error){console.error('Audit realtime call error:',error);res.status(500).send('Could not start Audit voice call');}});
+  }
+  return {install,handleText,handleVoice,getSnapshot:id=>states[id]?buildSnapshot(states[id]):null,_states:states};
+}
+
+module.exports={VERSION,ANSWER_IDS,UPDATE_IDS,safeSessionId,applyUpdates,buildSnapshot,confirmationText,realtimeTool,realtimeInstructions,createAuditIntake};

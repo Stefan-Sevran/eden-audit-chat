@@ -65,6 +65,10 @@ const {
   applyBookingUpdate
 } = require("./booking/update");
 
+const {
+  createAuditIntake
+} = require("./audits/intake-v232");
+
 
 const app = express();
 
@@ -97,6 +101,78 @@ const sessionClinicId = {};
 const bookingAlertSnapshots = {};
 const patientBookings = {};
 const voiceBookingLocks = {};
+
+/*
+  PUBLIC CLINIC AUDIT INTAKE
+
+  Mia's structured voice/text intake is intentionally isolated from the
+  patient-booking routes. Confirmed owner inputs enter Eden's existing
+  acquisition destinations once; publication still requires human review.
+*/
+const auditIntakeV232 = createAuditIntake({
+  openaiApiKey: OPENAI_API_KEY,
+
+  async onConfirmed({
+    sessionId,
+    snapshot,
+    history
+  }) {
+    const fields = snapshot.fields || {};
+    const inputs =
+      snapshot.interview?.revenueInputs || {};
+
+    clinicProfiles[sessionId] = {
+      ...(clinicProfiles[sessionId] || {}),
+      clinicName: fields.clinicName || "",
+      city: fields.clinicLocation || "",
+      clinicType: fields.clinicType || "",
+      website: fields.websiteUrl || "",
+      whatsapp: fields.whatsapp || "",
+      email: fields.email || "",
+      buyingIntent: "high",
+      mainPainPoint:
+        "Confirmed Clinic Revenue Audit intake"
+    };
+
+    sessions[sessionId] = Array.isArray(history)
+      ? history.slice(-50)
+      : [];
+
+    const summary = [
+      "CONFIRMED CLINIC REVENUE AUDIT INTAKE",
+      `Clinic: ${fields.clinicName || "Unknown"}`,
+      `Type: ${fields.clinicType || "Unknown"}`,
+      `Location: ${fields.clinicLocation || "Unknown"}`,
+      `Public page: ${fields.websiteUrl || "Unknown"}`,
+      `Delivery: ${
+        fields.email ||
+        fields.whatsapp ||
+        "Unknown"
+      }`,
+      "",
+      `Revenue inputs: ${JSON.stringify(inputs)}`,
+      "",
+      "Status: Owner confirmed. Human review remains required before private publication."
+    ].join("\n");
+
+    await saveLeadToGoogleSheets({
+      sessionId,
+      profileContext:
+        getProfileContext(sessionId),
+      summary,
+      transcript:
+        formatTranscript(
+          sessions[sessionId]
+        )
+    });
+
+    await sendTelegram(summary);
+
+    return { ok: true };
+  }
+});
+
+auditIntakeV232.install(app, express);
 
 
 const {

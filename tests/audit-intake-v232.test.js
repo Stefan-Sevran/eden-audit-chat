@@ -1,0 +1,351 @@
+const assert = require("assert");
+const express = require("express");
+
+const {
+  createAuditIntake,
+  realtimeTool,
+  realtimeInstructions
+} = require("../audits/intake-v232");
+
+async function startServer(app) {
+  const server = await new Promise((resolve) => {
+    const listener = app.listen(
+      0,
+      "127.0.0.1",
+      () => resolve(listener)
+    );
+  });
+
+  const address = server.address();
+
+  return {
+    server,
+    baseUrl:
+      `http://127.0.0.1:${address.port}`
+  };
+}
+
+async function jsonRequest(
+  baseUrl,
+  path,
+  payload
+) {
+  const response = await fetch(
+    baseUrl + path,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }
+  );
+
+  return {
+    status: response.status,
+    body: await response.json()
+  };
+}
+
+async function main() {
+  let completed = 0;
+  let lastCompletion = null;
+
+  const intake = createAuditIntake({
+    async onConfirmed(value) {
+      completed += 1;
+      lastCompletion = value;
+      return { ok: true };
+    },
+
+    async modelTurn({ history }) {
+      const user =
+        history[history.length - 1].content;
+
+      return {
+        reply:
+          "Got it. What is the clinic name?",
+        updates: /dental/i.test(user)
+          ? { clinicType: "Dental clinic" }
+          : {},
+        answeredFields: [],
+        ownerConfirmed: false
+      };
+    }
+  });
+
+  const app = express();
+  app.use(express.json());
+  intake.install(app, express);
+
+  const { server, baseUrl } =
+    await startServer(app);
+
+  try {
+    const sessionId =
+      "clinic_audit_test_123456789";
+
+    const first = await jsonRequest(
+      baseUrl,
+      "/audit-chat",
+      {
+        sessionId,
+        message:
+          "I run a dental clinic."
+      }
+    );
+
+    assert.equal(first.status, 200);
+    assert.match(
+      first.body.reply,
+      /clinic name/i
+    );
+    assert.equal(
+      intake.getSnapshot(sessionId)
+        .fields.clinicType,
+      "Dental clinic"
+    );
+
+    const full = {
+      sessionId,
+      clinicType: "Dental clinic",
+      clinicName:
+        "Digital Dental Pattaya",
+      clinicLocation:
+        "Pattaya, Thailand",
+      websiteUrl:
+        "digitaldentalpattaya.com",
+      currency: "THB",
+      monthlyWebFormInquiries: "20-30",
+      monthlyMessengerTextInquiries: "80",
+      monthlyMissedDelayedInquiries: "12",
+      monthlyMissedCalls: "8",
+      leadToBookingRate: "30%",
+      attendanceRate: "90%",
+      averageNewPatientValue: "5000",
+      answeredFields: [
+        "monthlyWebFormInquiries",
+        "monthlyMessengerTextInquiries",
+        "monthlyMissedDelayedInquiries",
+        "monthlyMissedCalls",
+        "leadToBookingRate",
+        "attendanceRate",
+        "averageNewPatientValue"
+      ]
+    };
+
+    const ready = await jsonRequest(
+      baseUrl,
+      "/audit-voice-intake",
+      full
+    );
+
+    assert.equal(ready.status, 200);
+    assert.equal(
+      ready.body.snapshot
+        .readyForConfirmation,
+      true
+    );
+    assert.equal(
+      ready.body.snapshot.interview
+        .revenueInputs.leadToBookingRate,
+      0.3
+    );
+    assert.match(
+      ready.body.summary,
+      /Digital Dental Pattaya/
+    );
+
+    const falseConfirmation =
+      await jsonRequest(
+        baseUrl,
+        "/audit-voice-intake",
+        {
+          sessionId,
+          ownerConfirmed: true,
+          confirmationEvidence: "maybe"
+        }
+      );
+
+    assert.equal(
+      falseConfirmation.body.snapshot
+        .ownerConfirmed,
+      false
+    );
+
+    const complete = await jsonRequest(
+      baseUrl,
+      "/audit-voice-intake",
+      {
+        sessionId,
+        ownerConfirmed: true,
+        confirmationEvidence:
+          "Yes, that's right",
+        email: "owner@example.com"
+      }
+    );
+
+    assert.equal(
+      complete.body.snapshot.ownerConfirmed,
+      true
+    );
+    assert.equal(
+      complete.body.snapshot.status,
+      "intake-complete"
+    );
+    assert.equal(completed, 1);
+    assert.equal(
+      lastCompletion.snapshot.interview
+        .revenueInputs.currency,
+      "THB"
+    );
+
+    await jsonRequest(
+      baseUrl,
+      "/audit-voice-intake",
+      {
+        sessionId,
+        email: "owner@example.com"
+      }
+    );
+
+    assert.equal(
+      completed,
+      1,
+      "Completion notification must be idempotent."
+    );
+
+    const conflictId =
+      "clinic_audit_conflict_123456";
+
+    const conflicted = await jsonRequest(
+      baseUrl,
+      "/audit-voice-intake",
+      {
+        ...full,
+        sessionId: conflictId,
+        monthlyMessengerTextInquiries:
+          "5",
+        monthlyMissedDelayedInquiries:
+          "12"
+      }
+    );
+
+    assert.equal(
+      conflicted.body.snapshot
+        .readyForConfirmation,
+      false
+    );
+    assert(
+      conflicted.body.snapshot
+        .validationErrors
+        .some((value) =>
+          /cannot exceed/.test(value)
+        )
+    );
+
+    const invalid = await jsonRequest(
+      baseUrl,
+      "/audit-chat",
+      {
+        sessionId: "bad",
+        message: "hello"
+      }
+    );
+
+    assert.equal(invalid.status, 400);
+
+    const tool = realtimeTool();
+    assert.equal(
+      tool.name,
+      "save_clinic_audit_progress"
+    );
+    assert(
+      tool.parameters.properties
+        .confirmationEvidence
+    );
+    assert.match(
+      realtimeInstructions(
+        ready.body.snapshot
+      ),
+      /Never invent clinic facts/
+    );
+  } finally {
+    await new Promise((resolve) =>
+      server.close(resolve)
+    );
+  }
+
+  let realtimeRequest = null;
+
+  const realtimeIntake = createAuditIntake({
+    openaiApiKey: "test-key",
+    async fetchImpl(url, options) {
+      realtimeRequest = { url, options };
+      return {
+        ok: true,
+        status: 201,
+        async text() {
+          return "v=0\r\na=answer";
+        }
+      };
+    }
+  });
+
+  const realtimeApp = express();
+  realtimeApp.use(express.json());
+  realtimeIntake.install(
+    realtimeApp,
+    express
+  );
+
+  const realtimeServer =
+    await startServer(realtimeApp);
+
+  try {
+    const response = await fetch(
+      realtimeServer.baseUrl +
+        "/audit-realtime-call" +
+        "?sessionId=" +
+        "clinic_audit_realtime_123456",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/sdp"
+        },
+        body: "v=0\r\na=offer"
+      }
+    );
+
+    assert.equal(response.status, 201);
+    assert.match(
+      await response.text(),
+      /a=answer/
+    );
+    assert.equal(
+      realtimeRequest.url,
+      "https://api.openai.com/v1/realtime/calls"
+    );
+    assert.match(
+      String(
+        realtimeRequest.options.headers
+          .Authorization
+      ),
+      /test-key/
+    );
+  } finally {
+    await new Promise((resolve) =>
+      realtimeServer.server.close(resolve)
+    );
+  }
+
+  console.log(
+    "V2.3.2 production text/voice intake, validation, confirmation and handoff tests passed."
+  );
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
