@@ -9,6 +9,7 @@ const {
   questionLike,
   explicitPauseLike,
   ensureForwardMotion,
+  deriveObviousBasics,
   realtimeTool,
   realtimeInstructions
 } = require("../audits/intake-v232");
@@ -54,7 +55,7 @@ async function jsonRequest(
 }
 
 async function main() {
-  assert.equal(VERSION, "2.3.2c");
+  assert.equal(VERSION, "2.3.2d");
   assert(yesLike("ใช่"));
   assert(yesLike("Opo"));
   assert(yesLike("sakto"));
@@ -73,6 +74,77 @@ async function main() {
     ),
     "Thanks for confirming Pattaya!\n\nHow many website inquiries do you receive each month?"
   );
+
+  const inferredState = {
+    fields: { clinicName: "Digital Dental Pattaya" },
+    inferredFields: {},
+    answers: {},
+    answered: {}
+  };
+  assert.deepEqual(
+    deriveObviousBasics(inferredState, "Digital Dental Pattaya"),
+    ["clinicType", "clinicLocation"]
+  );
+  assert.equal(inferredState.fields.clinicType, "Dental clinic");
+  assert.equal(inferredState.fields.clinicLocation, "Pattaya, Thailand");
+
+  const transcriptReplies = [
+    {
+      reply: "Thanks for sharing the clinic name. Could you tell me where the clinic is located exactly?",
+      updates: { clinicName: "Digital Dental Pattaya" }
+    },
+    {
+      reply: "I can't guess the exact location. What type of clinic do you run?",
+      updates: {}
+    },
+    {
+      reply: "We need a valid website link to proceed. What is the URL?",
+      updates: { websiteUrl: "No website" }
+    },
+    {
+      reply: "Thanks for correcting that.",
+      updates: { clinicLocation: "Bangkok, Thailand" }
+    }
+  ];
+  const transcriptIntake = createAuditIntake({
+    async modelTurn() {
+      return {
+        clearFields: [],
+        answeredFields: [],
+        ownerConfirmed: false,
+        ...transcriptReplies.shift()
+      };
+    }
+  });
+  const transcriptId = "social_inference_session_123456";
+  const namedClinic = await transcriptIntake.handleText({
+    sessionId: transcriptId,
+    message: "Wonderful, my clinic is Digital Dental Pattaya. I am an assistant to the owner, krab."
+  });
+  assert.equal(namedClinic.snapshot.fields.clinicType, "Dental clinic");
+  assert.equal(namedClinic.snapshot.fields.clinicLocation, "Pattaya, Thailand");
+  assert.match(namedClinic.reply, /dental clinic in Pattaya, Thailand/i);
+  assert.match(namedClinic.reply, /website|public page/i);
+  assert.doesNotMatch(namedClinic.reply, /where.*located|what type/i);
+  const guessed = await transcriptIntake.handleText({
+    sessionId: transcriptId,
+    message: "Yeh well, make a guess."
+  });
+  assert.doesNotMatch(guessed.reply, /can't guess|what type|where.*located/i);
+  assert.match(guessed.reply, /website|public page/i);
+  const noWebsite = await transcriptIntake.handleText({
+    sessionId: transcriptId,
+    message: "No website."
+  });
+  assert.doesNotMatch(noWebsite.reply, /valid website|valid link|required.*proceed/i);
+  assert.match(noWebsite.reply, /inquiries|booking requests/i);
+  const correctedInference = await transcriptIntake.handleText({
+    sessionId: transcriptId,
+    message: "Actually, the clinic is in Bangkok."
+  });
+  assert.equal(correctedInference.snapshot.fields.clinicLocation, "Bangkok, Thailand");
+  assert.equal(correctedInference.snapshot.inferredFields.clinicLocation, undefined);
+  assert.match(correctedInference.reply, /inquiries|booking requests/i);
 
   let requestedModel = null;
   const modelSelectionIntake = createAuditIntake({
@@ -592,7 +664,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2c production text/voice intake, social intelligence, forward motion, confirmation and handoff tests passed."
+    "V2.3.2d production text/voice intake, intelligent inference, forward motion, confirmation and handoff tests passed."
   );
 }
 
