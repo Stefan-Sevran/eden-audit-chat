@@ -82,6 +82,8 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
+const AUDIT_TELEGRAM_CHAT_ID = process.env.AUDIT_TELEGRAM_CHAT_ID;
+const AUDIT_GOOGLE_SCRIPT_URL = process.env.AUDIT_GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL;
 const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -140,6 +142,7 @@ const auditIntakeV232 = createAuditIntake({
 
     const summary = [
       "CONFIRMED CLINIC REVENUE AUDIT INTAKE",
+      `Reference: ${snapshot.auditReference}`,
       `Clinic: ${fields.clinicName || "Unknown"}`,
       `Type: ${fields.clinicType || "Unknown"}`,
       `Location: ${fields.clinicLocation || "Unknown"}`,
@@ -155,20 +158,40 @@ const auditIntakeV232 = createAuditIntake({
       "Status: Owner confirmed. Human review remains required before private publication."
     ].join("\n");
 
-    await saveLeadToGoogleSheets({
+    const payload = {
+      type: "clinic_revenue_audit_intake",
+      schemaVersion: snapshot.schemaVersion,
+      auditReference: snapshot.auditReference,
       sessionId,
-      profileContext:
-        getProfileContext(sessionId),
+      clinic: fields.clinicName || "",
+      city: fields.clinicLocation || "",
+      clinicType: fields.clinicType || "",
+      website: fields.websiteUrl || "",
+      whatsapp: fields.whatsapp || "",
+      email: fields.email || "",
+      revenueInputs: inputs,
       summary,
-      transcript:
-        formatTranscript(
-          sessions[sessionId]
-        )
-    });
+      transcript: formatTranscript(sessions[sessionId]),
+      timestamp: new Date().toISOString()
+    };
 
-    await sendTelegram(summary);
+    const [sheetsResult, telegramResult] = await Promise.all([
+      postJsonToGoogleSheets(AUDIT_GOOGLE_SCRIPT_URL, payload),
+      sendTelegramTo(AUDIT_TELEGRAM_CHAT_ID, summary)
+    ]);
 
-    return { ok: true };
+    if (!sheetsResult.ok && !telegramResult.ok) {
+      throw new Error("No durable Audit intake destination accepted the submission");
+    }
+
+    return {
+      ok: true,
+      auditReference: snapshot.auditReference,
+      channels: {
+        googleSheets: Boolean(sheetsResult.ok),
+        telegram: Boolean(telegramResult.ok)
+      }
+    };
   }
 });
 

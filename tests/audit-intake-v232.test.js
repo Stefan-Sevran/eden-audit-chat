@@ -3,6 +3,8 @@ const express = require("express");
 
 const {
   createAuditIntake,
+  yesLike,
+  claimsPrematureCompletion,
   realtimeTool,
   realtimeInstructions
 } = require("../audits/intake-v232");
@@ -48,6 +50,29 @@ async function jsonRequest(
 }
 
 async function main() {
+  assert(yesLike("ใช่"));
+  assert(yesLike("Opo"));
+  assert(yesLike("sakto"));
+  assert(!yesLike("maybe"));
+  assert(claimsPrematureCompletion("I'll prepare the audit now."));
+
+  const guardedIntake = createAuditIntake({
+    async modelTurn() {
+      return {
+        reply: "I'll prepare your Audit now.",
+        updates: { clinicType: "Dental clinic" },
+        answeredFields: [],
+        ownerConfirmed: false
+      };
+    }
+  });
+  const guarded = await guardedIntake.handleText({
+    sessionId: "guarded_audit_session_123456",
+    message: "I run a dental clinic."
+  });
+  assert.doesNotMatch(guarded.reply, /prepare your Audit/i);
+  assert.match(guarded.reply, /clinic.*name/i);
+
   let completed = 0;
   let lastCompletion = null;
 
@@ -193,6 +218,10 @@ async function main() {
       complete.body.snapshot.status,
       "intake-complete"
     );
+    assert.match(
+      complete.body.snapshot.auditReference,
+      /^AUD-\d{8}-[A-Z0-9]+$/
+    );
     assert.equal(completed, 1);
     assert.equal(
       lastCompletion.snapshot.interview
@@ -213,6 +242,36 @@ async function main() {
       completed,
       1,
       "Completion notification must be idempotent."
+    );
+
+    const rejectedDelivery = createAuditIntake({
+      async onConfirmed() {
+        return { ok: false };
+      }
+    });
+    const rejectedSession =
+      "clinic_audit_rejected_123456";
+    await rejectedDelivery.handleVoice({
+      sessionId: rejectedSession,
+      payload: {
+        ...full,
+        sessionId: undefined,
+        email: "owner@example.com"
+      }
+    });
+    await assert.rejects(
+      rejectedDelivery.handleVoice({
+        sessionId: rejectedSession,
+        payload: {
+          ownerConfirmed: true,
+          confirmationEvidence: "Opo"
+        }
+      }),
+      /could not be delivered/
+    );
+    assert.notEqual(
+      rejectedDelivery.getSnapshot(rejectedSession).status,
+      "intake-complete"
     );
 
     const conflictId =
@@ -334,6 +393,18 @@ async function main() {
       ),
       /test-key/
     );
+    const realtimeSession = JSON.parse(
+      realtimeRequest.options.body.get("session")
+    );
+    assert.deepEqual(
+      realtimeSession.audio.input.turn_detection,
+      {
+        type: "semantic_vad",
+        eagerness: "medium",
+        create_response: true,
+        interrupt_response: true
+      }
+    );
   } finally {
     await new Promise((resolve) =>
       realtimeServer.server.close(resolve)
@@ -341,7 +412,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2 production text/voice intake, validation, confirmation and handoff tests passed."
+    "V2.3.2a production text/voice intake, validation, confirmation and handoff tests passed."
   );
 }
 
