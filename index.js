@@ -180,6 +180,22 @@ const auditIntakeV232 = createAuditIntake({
       sendTelegramTo(AUDIT_TELEGRAM_CHAT_ID, summary)
     ]);
 
+    if (!telegramResult.ok) {
+      console.error(
+        "AUDIT TELEGRAM DELIVERY FAILED:",
+        snapshot.auditReference,
+        telegramResult
+      );
+    }
+
+    if (!sheetsResult.ok) {
+      console.error(
+        "AUDIT GOOGLE SHEETS DELIVERY FAILED:",
+        snapshot.auditReference,
+        sheetsResult
+      );
+    }
+
     if (!sheetsResult.ok && !telegramResult.ok) {
       throw new Error("No durable Audit intake destination accepted the submission");
     }

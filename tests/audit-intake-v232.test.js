@@ -12,6 +12,8 @@ const {
   ensureForwardMotion,
   deriveObviousBasics,
   languageCapabilityLike,
+  completionAwarePrompt,
+  completionReceipt,
   realtimeTool,
   realtimeInstructions
 } = require("../audits/intake-v232");
@@ -57,7 +59,24 @@ async function jsonRequest(
 }
 
 async function main() {
-  assert.equal(VERSION, "2.3.2f");
+  assert.equal(VERSION, "2.3.2g");
+  assert.match(completionAwarePrompt({
+    ...{
+      schemaVersion: VERSION,
+      sessionId: "prompt_test_session_123456",
+      auditReference: "AUD-TEST",
+      fields: {},
+      inferredFields: {},
+      answers: {},
+      answered: {},
+      ownerConfirmed: false,
+      awaitingConfirmation: false,
+      delivered: false,
+      notified: false,
+      delivery: null
+    }
+  }), /within one business day/);
+  assert.match(completionReceipt({ auditReference: "AUD-TEST" }), /within one business day/);
   assert(yesLike("ใช่"));
   assert(yesLike("Opo"));
   assert(yesLike("sakto"));
@@ -478,6 +497,15 @@ async function main() {
             ownerConfirmed: false
           };
         }
+        if (/when.+audit|how long/i.test(latest)) {
+          return {
+            reply: "Usually within one business day, after a quick human evidence review.",
+            updates: {},
+            clearFields: [],
+            answeredFields: [],
+            ownerConfirmed: false
+          };
+        }
         return {
           reply: "Understood.",
           updates: {},
@@ -532,7 +560,15 @@ async function main() {
     });
     assert.equal(deliveredContact.snapshot.status, "intake-complete");
     assert.doesNotMatch(deliveredContact.reply, /Quick check|Does that look right/i);
-    assert.match(deliveredContact.reply, /Reference:/i);
+    assert.match(deliveredContact.reply, /reference (?:is|:)/i);
+    assert.match(deliveredContact.reply, /within one business day/i);
+    const deliveryTiming = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "Okay, when is the Audit delivered?"
+    });
+    assert.match(deliveryTiming.reply, /within one business day/i);
+    assert.doesNotMatch(deliveryTiming.reply, /your Audit intake (?:has been received|is in)/i);
+    assert.equal(deliveryTiming.snapshot.status, "intake-complete");
 
     const ready = await jsonRequest(
       baseUrl,
@@ -787,7 +823,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2f human conversation, confirmation state, value clarification, quick choices and handoff tests passed."
+    "V2.3.2g human conversation, completed follow-ups, delivery timing, confirmation state, quick choices and handoff tests passed."
   );
 }
 
