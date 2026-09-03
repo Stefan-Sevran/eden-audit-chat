@@ -2,10 +2,13 @@ const assert = require("assert");
 const express = require("express");
 
 const {
+  VERSION,
   createAuditIntake,
   yesLike,
   claimsPrematureCompletion,
   questionLike,
+  explicitPauseLike,
+  ensureForwardMotion,
   realtimeTool,
   realtimeInstructions
 } = require("../audits/intake-v232");
@@ -51,12 +54,114 @@ async function jsonRequest(
 }
 
 async function main() {
+  assert.equal(VERSION, "2.3.2c");
   assert(yesLike("ใช่"));
   assert(yesLike("Opo"));
   assert(yesLike("sakto"));
   assert(!yesLike("maybe"));
   assert(claimsPrematureCompletion("I'll prepare the audit now."));
   assert(questionLike("What does inquiry-to-booking rate mean?"));
+  assert(explicitPauseLike("Let's continue this later"));
+  assert.equal(
+    ensureForwardMotion(
+      "Thanks for confirming Pattaya!",
+      {
+        status: "collecting",
+        nextQuestion: "How many website inquiries do you receive each month?"
+      },
+      "Pattaya, of course."
+    ),
+    "Thanks for confirming Pattaya!\n\nHow many website inquiries do you receive each month?"
+  );
+
+  let requestedModel = null;
+  const modelSelectionIntake = createAuditIntake({
+    openaiApiKey: "test-key",
+    async fetchImpl(url, options) {
+      requestedModel = JSON.parse(options.body).model;
+      return {
+        ok: true,
+        async json() {
+          return {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  reply: "Got it. What is the clinic's name?",
+                  updates: { clinicType: "Dental clinic" },
+                  clearFields: [],
+                  answeredFields: [],
+                  ownerConfirmed: false
+                })
+              }
+            }]
+          };
+        }
+      };
+    }
+  });
+  await modelSelectionIntake.handleText({
+    sessionId: "model_selection_session_123456",
+    message: "I run a dental clinic."
+  });
+  assert.equal(requestedModel, "gpt-4.1-mini");
+
+  const forwardReplies = [
+    {
+      reply: "Got it. What is the clinic's name?",
+      updates: { clinicType: "Dental clinic" }
+    },
+    {
+      reply: "Thanks for the website. What is the clinic's name?",
+      updates: { websiteUrl: "digitaldentalpattaya.com" }
+    },
+    {
+      reply: "Got it. Which city and country is the clinic in?",
+      updates: { clinicName: "Digital Dental Pattaya" }
+    },
+    {
+      reply: "Thanks for confirming that your clinic is in Pattaya!",
+      updates: { clinicLocation: "Pattaya, Thailand" }
+    },
+    {
+      reply: "Just gathering some details to help with the audit!",
+      updates: {}
+    }
+  ];
+  const forwardIntake = createAuditIntake({
+    async modelTurn() {
+      return {
+        clearFields: [],
+        answeredFields: [],
+        ownerConfirmed: false,
+        ...forwardReplies.shift()
+      };
+    }
+  });
+  const forwardId = "forward_motion_session_123456";
+  await forwardIntake.handleText({ sessionId: forwardId, message: "I run a dental clinic." });
+  await forwardIntake.handleText({ sessionId: forwardId, message: "digitaldentalpattaya.com" });
+  await forwardIntake.handleText({ sessionId: forwardId, message: "Digital Dental Pattaya, of course :)" });
+  const locationReply = await forwardIntake.handleText({ sessionId: forwardId, message: "Pattaya, of course." });
+  assert.match(locationReply.reply, /website.*inquir|inquir.*website/i);
+  const impatientReply = await forwardIntake.handleText({ sessionId: forwardId, message: "Ok? So?" });
+  assert.match(impatientReply.reply, /website.*inquir|inquir.*website/i);
+
+  const pauseIntake = createAuditIntake({
+    async modelTurn() {
+      return {
+        reply: "Of course—we can continue later.",
+        updates: {},
+        clearFields: [],
+        answeredFields: [],
+        ownerConfirmed: false
+      };
+    }
+  });
+  const paused = await pauseIntake.handleText({
+    sessionId: "paused_audit_session_123456",
+    message: "Let's continue this later"
+  });
+  assert.equal(paused.reply, "Of course—we can continue later.");
 
   const guardedIntake = createAuditIntake({
     async modelTurn() {
@@ -487,7 +592,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2b production text/voice intake, adaptive clarification, confirmation and handoff tests passed."
+    "V2.3.2c production text/voice intake, social intelligence, forward motion, confirmation and handoff tests passed."
   );
 }
 
