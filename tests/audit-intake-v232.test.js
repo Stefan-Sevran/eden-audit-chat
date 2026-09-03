@@ -4,6 +4,7 @@ const express = require("express");
 const {
   VERSION,
   createAuditIntake,
+  confirmationLike,
   yesLike,
   claimsPrematureCompletion,
   questionLike,
@@ -56,10 +57,14 @@ async function jsonRequest(
 }
 
 async function main() {
-  assert.equal(VERSION, "2.3.2e");
+  assert.equal(VERSION, "2.3.2f");
   assert(yesLike("ใช่"));
   assert(yesLike("Opo"));
   assert(yesLike("sakto"));
+  assert(confirmationLike("sure"));
+  assert(confirmationLike("I have already confirmed these"));
+  assert(confirmationLike("Sure, deliver the report please"));
+  assert(!confirmationLike("Sure, but change the missed calls"));
   assert(!yesLike("maybe"));
   assert(claimsPrematureCompletion("I'll prepare the audit now."));
   assert(questionLike("What does inquiry-to-booking rate mean?"));
@@ -149,10 +154,13 @@ async function main() {
   assert.match(correctedInference.reply, /inquiries|booking requests/i);
 
   let requestedModel = null;
+  let requestedPrompt = null;
   const modelSelectionIntake = createAuditIntake({
     openaiApiKey: "test-key",
     async fetchImpl(url, options) {
-      requestedModel = JSON.parse(options.body).model;
+      const requestBody = JSON.parse(options.body);
+      requestedModel = requestBody.model;
+      requestedPrompt = requestBody.messages[0].content;
       return {
         ok: true,
         async json() {
@@ -178,6 +186,8 @@ async function main() {
     message: "I run a dental clinic."
   });
   assert.equal(requestedModel, "gpt-4.1-mini");
+  assert.match(requestedPrompt, /relaxed human colleague/i);
+  assert.match(requestedPrompt, /missed.*text messages.*missed phone calls/i);
 
   const languageIntake = createAuditIntake({
     async modelTurn() {
@@ -378,6 +388,53 @@ async function main() {
       ]
     };
 
+    const ambiguousReplies = [
+      {
+        reply: "About 2,000 baht, noted.",
+        updates: { averageNewPatientValue: "2000 baht" },
+        answeredFields: ["averageNewPatientValue"]
+      },
+      {
+        reply: "We'll use the conservative first-visit value.",
+        updates: { averageNewPatientValue: "2000 THB" },
+        answeredFields: ["averageNewPatientValue"]
+      }
+    ];
+    const ambiguousIntake = createAuditIntake({
+      async modelTurn() {
+        return {
+          clearFields: [],
+          ownerConfirmed: false,
+          ...ambiguousReplies.shift()
+        };
+      }
+    });
+    const ambiguousId = "ambiguous_value_session_123456";
+    await ambiguousIntake.handleVoice({
+      sessionId: ambiguousId,
+      payload: {
+        ...full,
+        sessionId: undefined,
+        averageNewPatientValue: undefined,
+        answeredFields: full.answeredFields.filter(
+          (id) => id !== "averageNewPatientValue"
+        )
+      }
+    });
+    const ambiguousValue = await ambiguousIntake.handleText({
+      sessionId: ambiguousId,
+      message: "First visit maybe 2000 baht, but it varies a lot and some patients rebook multiple times."
+    });
+    assert.equal(ambiguousValue.snapshot.readyForConfirmation, false);
+    assert.match(ambiguousValue.reply, /distinction matters/i);
+    assert.match(ambiguousValue.reply, /first-visit value|repeat visits/i);
+    const conservativeValue = await ambiguousIntake.handleText({
+      sessionId: ambiguousId,
+      message: "Use 2000 baht as the conservative first-visit value."
+    });
+    assert.equal(conservativeValue.snapshot.readyForConfirmation, true);
+    assert.match(conservativeValue.reply, /Quick check before I run the Audit/i);
+
     const adaptiveIntake = createAuditIntake({
       async modelTurn({ history }) {
         const latest = history.at(-1).content;
@@ -408,6 +465,19 @@ async function main() {
             ownerConfirmed: false
           };
         }
+        if (/protonmail|989252310/.test(latest)) {
+          return {
+            reply: "I'll send it there.",
+            updates: {
+              contactName: "Carlos",
+              email: "steloa@protonmail.com",
+              whatsapp: "+66 989252310"
+            },
+            clearFields: [],
+            answeredFields: [],
+            ownerConfirmed: false
+          };
+        }
         return {
           reply: "Understood.",
           updates: {},
@@ -426,7 +496,7 @@ async function main() {
       sessionId: adaptiveId,
       message: "Continue"
     });
-    assert.match(firstSummary.reply, /please confirm/i);
+    assert.match(firstSummary.reply, /Quick check before I run the Audit/i);
     const explanation = await adaptiveIntake.handleText({
       sessionId: adaptiveId,
       message: "What is inquiry-to-booking rate?"
@@ -446,10 +516,23 @@ async function main() {
     assert.match(revisedSummary.reply, /Inquiry-to-booking rate: 65%/);
     const plainConfirmation = await adaptiveIntake.handleText({
       sessionId: adaptiveId,
-      message: "ok"
+      message: "sure"
     });
     assert.equal(plainConfirmation.snapshot.ownerConfirmed, true);
     assert.match(plainConfirmation.reply, /email or WhatsApp/i);
+    const repeatedConfirmation = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "I have already confirmed these"
+    });
+    assert.doesNotMatch(repeatedConfirmation.reply, /Quick check|Does that look right/i);
+    assert.match(repeatedConfirmation.reply, /email or WhatsApp/i);
+    const deliveredContact = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "Carlos, steloa@protonmail.com, +66 989252310"
+    });
+    assert.equal(deliveredContact.snapshot.status, "intake-complete");
+    assert.doesNotMatch(deliveredContact.reply, /Quick check|Does that look right/i);
+    assert.match(deliveredContact.reply, /Reference:/i);
 
     const ready = await jsonRequest(
       baseUrl,
@@ -704,7 +787,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2e production chat intelligence, multilingual answer-first behavior, quick choices and handoff tests passed."
+    "V2.3.2f human conversation, confirmation state, value clarification, quick choices and handoff tests passed."
   );
 }
 
