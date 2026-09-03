@@ -10,6 +10,7 @@ const {
   explicitPauseLike,
   ensureForwardMotion,
   deriveObviousBasics,
+  languageCapabilityLike,
   realtimeTool,
   realtimeInstructions
 } = require("../audits/intake-v232");
@@ -55,13 +56,14 @@ async function jsonRequest(
 }
 
 async function main() {
-  assert.equal(VERSION, "2.3.2d");
+  assert.equal(VERSION, "2.3.2e");
   assert(yesLike("ใช่"));
   assert(yesLike("Opo"));
   assert(yesLike("sakto"));
   assert(!yesLike("maybe"));
   assert(claimsPrematureCompletion("I'll prepare the audit now."));
   assert(questionLike("What does inquiry-to-booking rate mean?"));
+  assert(languageCapabilityLike("By the way, do you speak Thai?"));
   assert(explicitPauseLike("Let's continue this later"));
   assert.equal(
     ensureForwardMotion(
@@ -176,6 +178,34 @@ async function main() {
     message: "I run a dental clinic."
   });
   assert.equal(requestedModel, "gpt-4.1-mini");
+
+  const languageIntake = createAuditIntake({
+    async modelTurn() {
+      return {
+        reply: "Yes—I speak Thai too, and I can continue in Thai whenever you prefer. Roughly how many patient inquiries arrive through your website each month?",
+        updates: { websiteUrl: "digitaldentalpattaya.com" },
+        clearFields: [],
+        answeredFields: [],
+        ownerConfirmed: false
+      };
+    }
+  });
+  const languageId = "language_answer_session_123456";
+  await languageIntake.handleVoice({
+    sessionId: languageId,
+    payload: {
+      clinicType: "Dental clinic",
+      clinicName: "Digital Dental Pattaya",
+      clinicLocation: "Pattaya, Thailand"
+    }
+  });
+  const languageReply = await languageIntake.handleText({
+    sessionId: languageId,
+    message: "digitaldentalpattaya.com — by the way, do you speak Thai?"
+  });
+  assert.match(languageReply.reply, /speak Thai/i);
+  assert.match(languageReply.reply, /inquiries.*website|website.*inquiries/i);
+  assert.doesNotMatch(languageReply.reply, /already have that detail noted/i);
 
   const forwardReplies = [
     {
@@ -309,6 +339,16 @@ async function main() {
         .fields.clinicType,
       "Dental clinic"
     );
+
+    const choices = await jsonRequest(
+      baseUrl,
+      "/audit-chat",
+      {
+        sessionId: "clinic_choices_session_123456",
+        message: "Hello, can I do an audit?"
+      }
+    );
+    assert.equal(choices.body.nextField, "clinicType");
 
     const full = {
       sessionId,
@@ -664,7 +704,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2d production text/voice intake, intelligent inference, forward motion, confirmation and handoff tests passed."
+    "V2.3.2e production chat intelligence, multilingual answer-first behavior, quick choices and handoff tests passed."
   );
 }
 
