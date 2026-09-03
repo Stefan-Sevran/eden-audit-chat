@@ -5,6 +5,7 @@ const {
   createAuditIntake,
   yesLike,
   claimsPrematureCompletion,
+  questionLike,
   realtimeTool,
   realtimeInstructions
 } = require("../audits/intake-v232");
@@ -55,6 +56,7 @@ async function main() {
   assert(yesLike("sakto"));
   assert(!yesLike("maybe"));
   assert(claimsPrematureCompletion("I'll prepare the audit now."));
+  assert(questionLike("What does inquiry-to-booking rate mean?"));
 
   const guardedIntake = createAuditIntake({
     async modelTurn() {
@@ -158,6 +160,79 @@ async function main() {
         "averageNewPatientValue"
       ]
     };
+
+    const adaptiveIntake = createAuditIntake({
+      async modelTurn({ history }) {
+        const latest = history.at(-1).content;
+        if (/what.+inquiry-to-booking/i.test(latest)) {
+          return {
+            reply: "It means the share of inquiries that become booked appointments. For example, 65 bookings from 100 inquiries is 65%. What estimate fits your clinic?",
+            updates: {},
+            clearFields: [],
+            answeredFields: [],
+            ownerConfirmed: false
+          };
+        }
+        if (/please adjust/i.test(latest)) {
+          return {
+            reply: "Of course. What should the revised inquiry-to-booking rate be?",
+            updates: {},
+            clearFields: ["leadToBookingRate"],
+            answeredFields: [],
+            ownerConfirmed: false
+          };
+        }
+        if (/65%/.test(latest)) {
+          return {
+            reply: "Updated to 65%.",
+            updates: { leadToBookingRate: "65%" },
+            clearFields: [],
+            answeredFields: ["leadToBookingRate"],
+            ownerConfirmed: false
+          };
+        }
+        return {
+          reply: "Understood.",
+          updates: {},
+          clearFields: [],
+          answeredFields: [],
+          ownerConfirmed: false
+        };
+      }
+    });
+    const adaptiveId = "adaptive_audit_session_123456";
+    await adaptiveIntake.handleVoice({
+      sessionId: adaptiveId,
+      payload: full
+    });
+    const firstSummary = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "Continue"
+    });
+    assert.match(firstSummary.reply, /please confirm/i);
+    const explanation = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "What is inquiry-to-booking rate?"
+    });
+    assert.match(explanation.reply, /share of inquiries/i);
+    assert.doesNotMatch(explanation.reply, /please confirm/i);
+    const revisionRequest = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "Please adjust that rate"
+    });
+    assert.match(revisionRequest.reply, /revised inquiry-to-booking rate/i);
+    assert.equal(revisionRequest.snapshot.readyForConfirmation, false);
+    const revisedSummary = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "Set it to 65%"
+    });
+    assert.match(revisedSummary.reply, /Inquiry-to-booking rate: 65%/);
+    const plainConfirmation = await adaptiveIntake.handleText({
+      sessionId: adaptiveId,
+      message: "ok"
+    });
+    assert.equal(plainConfirmation.snapshot.ownerConfirmed, true);
+    assert.match(plainConfirmation.reply, /email or WhatsApp/i);
 
     const ready = await jsonRequest(
       baseUrl,
@@ -412,7 +487,7 @@ async function main() {
   }
 
   console.log(
-    "V2.3.2a production text/voice intake, validation, confirmation and handoff tests passed."
+    "V2.3.2b production text/voice intake, adaptive clarification, confirmation and handoff tests passed."
   );
 }
 

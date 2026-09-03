@@ -47,5 +47,5 @@ assert(
 );
 
 console.log(
-    "V2.3.2a production route registration and Nida route regression checks passed."
+    "V2.3.2b production route registration and Nida route regression checks passed."
 );
