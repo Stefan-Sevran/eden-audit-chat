@@ -1,0 +1,15 @@
+const assert=require('assert');
+const {normalizeReview}=require('./review-owner-report');
+const {VERSION,buildOwnerReviewTemplate,buildOwnerReportModel}=require('./owner-report');
+assert(['2.2.43','2.2.44'].includes(VERSION));
+const normalized=normalizeReview({primaryOpportunityId:'manual-1',primaryOpportunity:{title:'Plain owner language',diagnosis:'Patients may be lost here.',recommendedFix:'Reply faster.',edenImplementation:'Eden can automate this.'},hideFindingIds:['weak-1'],addFindings:[{id:'manual-1',title:'Manual finding',diagnosis:'Human observed.',recommendedFix:'Fix it.',include:true}],reviewerNote:'Checked by reviewer.'},{primaryOpportunityId:'fallback'});
+assert.equal(normalized.primaryOpportunityId,'manual-1');
+assert.equal(normalized.primaryOpportunity.title,'Plain owner language');
+assert.deepEqual(normalized.hideFindingIds,['weak-1']);
+assert.equal(normalized.addFindings.length,1);
+assert.equal(normalized.addFindings[0].confidence,'verified-by-reviewer');
+const manifest={reviewedUrl:'https://example.test',clinicIdentity:{clinicName:'Example Clinic'},crossChannelGrowth:{actions:{topActions:[]},revenue:null}};
+const model=buildOwnerReportModel(manifest,{});
+const template=buildOwnerReviewTemplate(model);
+assert(['2.2.43','2.2.44'].includes(template.schemaVersion));
+console.log('V2.2.43 owner review studio tests passed.');

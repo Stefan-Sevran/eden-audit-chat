@@ -1,0 +1,12 @@
+const assert=require('assert');
+const {buildReportModel,renderHtml}=require('./report-engine');
+const {buildCrossChannelGrowthModel}=require('./cross-channel-action-engine');
+const manifest={version:'2.2.9',reviewedUrl:'https://clinic.test',clinicIdentity:{clinicName:'Clinic Test',location:'Pattaya'},scoring:{overall:83,categories:{bookingJourney:56},flags:[]},summary:{bookingCtaVisible:true,phoneActionable:true,mobileHeroClarity:74},bookingFlow:{analyzed:true,manualConfirmationDetected:true,responseWithinDays:1,minimumAdvanceDays:3,urgentFallbackDetected:true,totalRequiredFieldCount:8,measurementCompleteness:{unknownLaterStepBurden:true}},googleBusiness:{assessment:{status:'insufficient-evidence',overall:null,confidence:'low'},evidence:{branches:[{profile:{rating:4.8},actions:{websiteAvailable:true},conversionDestination:{status:'probed',classification:'clinic-website',qualityScore:76,finalUrl:'https://clinic.test'}}]}},facebook:{assessment:{status:'insufficient-evidence',overall:null,responseMetrics:{},sampleStability:{}}},aiAuditIntelligence:{status:'completed',model:'test',agreement:{confirmed:1,humanReviewConflicts:0},facebookVisualAssessments:{handoffQuality:{assessment:'weak',confidence:'high',rationale:'Login friction'},receptionistOpportunity:{opportunity:'not_assessable',confidence:'high',rationale:'thin'}},narrative:{executiveSummary:'Test',costingPatients:'Test risk',topPriorities:[],quickWins:[],pillarExplanations:{website:'w',googleBusiness:'g',facebook:'f'},caveats:[],edenIntervention:'x'},conflicts:[]}};
+manifest.crossChannelGrowth=buildCrossChannelGrowthModel(manifest,{revenueInputs:{currency:'THB',averageRevenuePerRecoveredPatient:10000,monthlyMissedCalls:10}});
+const model=buildReportModel(manifest,{});
+assert(model.actionEngine.topActions.length>0);
+assert.equal(model.revenueOpportunity.status,'scenario-calculated');
+const html=renderHtml(model);
+assert(html.includes('Highest-value actions'));
+assert(html.includes('Revenue recovery model'));
+console.log('report-growth-v229 ok');

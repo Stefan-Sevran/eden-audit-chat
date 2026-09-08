@@ -1,0 +1,10 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const { mergeFacebookEvidence } = require('./facebook-probe');
+const probe={schemaVersion:'2.1.8',status:'probed',targetUrl:'https://www.facebook.com/TestClinic/',testedAt:new Date().toISOString(),authentication:{requested:true,used:true,status:'authenticated-session'},destination:{landsOnClinicPage:true},page:{pageName:'Test Clinic'},actions:{},consistency:{},demand:{},response:{}};
+const merged=mergeFacebookEvidence({schemaVersion:'2.1.8'},probe);
+assert.equal(merged.schemaVersion,'2.1.8');
+assert.equal(merged.provenance.source,'authenticated-browser-probe-plus-manual');
+assert.equal(merged.destination.landsOnClinicPage,true);
+console.log('facebook-auth-v214.test.js passed');

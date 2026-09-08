@@ -1,0 +1,11 @@
+const assert=require('assert');
+const {searchUrl,firstCandidate,parseRatingAndReviews,mergeProbeIntoEvidence}=require('./google-business-probe');
+const {buildGoogleBusinessTemplate,scoreGoogleBusiness}=require('./google-business');
+assert(searchUrl({clinicName:'Digital Dental Pattaya',location:'Pattaya, Thailand'}).includes('Digital%20Dental%20Pattaya'));
+assert(firstCandidate({identity:{clinicName:'X',location:'Y'},discovery:{googleMapsUrls:['https://www.google.com/maps/place/Test']}}).includes('/maps/place/Test'));
+assert.deepEqual(parseRatingAndReviews({bodyText:'Digital Dental Pattaya 4.9 stars 327 reviews',rows:[]}),{rating:4.9,reviewCount:327});
+const t=buildGoogleBusinessTemplate({identity:{clinicName:'Digital Dental Pattaya',location:'Pattaya, Thailand'},channelPlan:{modules:[]}});
+const p={status:'probed',profileSurfaceConfirmed:true,targetUrl:'https://www.google.com/maps/test',finalUrl:'https://www.google.com/maps/place/test',identity:{pageName:'Digital Dental Pattaya'},profile:{rating:4.9,reviewCount:327,address:'Pattaya',phone:'038000000',website:'https://clinic.test',hoursPresent:true},actions:{directions:{observed:true},website:{observed:true},call:{observed:true},booking:{observed:null},message:{observed:null}},provenance:{collectedAt:'2026-08-28T00:00:00Z'}};
+const e=mergeProbeIntoEvidence(t,p);assert.equal(e.status,'probed');assert.equal(e.branches[0].profile.rating,4.9);assert.equal(e.branches[0].actions.directionsAvailable,true);
+const score=scoreGoogleBusiness(e);assert.notEqual(score.status,'awaiting-evidence');assert(score.branches.length===1);assert(score.branches[0].components.reputationStrength!==null);
+console.log('google-business-probe-v223 ok');

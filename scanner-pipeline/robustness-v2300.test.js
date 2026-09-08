@@ -1,0 +1,26 @@
+const assert=require('assert');
+const fs=require('fs');
+const os=require('os');
+const path=require('path');
+const vm=require('vm');
+const {VERSION,buildOwnerReportModel,renderOwnerReport}=require('./owner-report');
+const {generateAuditVisuals}=require('./audit-visuals');
+const {validateReport,publishPrivateAudit,findPublication,publishingState,revokePublication,recordActivity,safePublicFile}=require('./private-audit');
+const {profileFromModel,safeReply,renderPreviewPage}=require('./receptionist-preview');
+const {normalizeReview,reviewHtml}=require('./review-owner-report');
+
+assert.equal(VERSION,'2.3.0');
+const manifest={reviewedUrl:'https://example.test',clinicIdentity:{clinicName:'Jorgio Dental Health Care Clinic',location:'Cebu City, Philippines'},crossChannelGrowth:{revenue:{currency:'PHP',averageNewPatientValue:3500,ownerInputs:{averageNewPatientValue:3500},assumptions:{leadToBookingRate:{base:.55},attendanceRate:{base:.85}},opportunities:[{basis:'reported-leakage',monthlyVolume:{base:20,low:20,high:20}}],monthlyRevenueScenarios:{conservative:4712,base:7350,upside:10080}},actions:{topActions:[]}}};
+const review=normalizeReview({preview:{assistantName:'Lia',greeting:'Hello from Jorgio.',verifiedFacts:['Implants available'],implementationUrl:'https://example.test/start'},publishing:{humanApproved:true,expiresInDays:30},reportCopy:{}},{});
+assert.equal(review.schemaVersion,'2.3.0');assert.equal(review.preview.assistantName,'Lia');assert.deepEqual(review.preview.verifiedFacts,['Implants available']);assert(review.publishing.humanApproved);
+const model=buildOwnerReportModel(manifest,{ownerReview:review});const html=renderOwnerReport(model);
+assert(html.includes('Free 60-second sneak peek'));assert(html.includes('Meet Jorgio Dental Health Care Clinic&#039;s AI receptionist.'));assert(html.includes('try-avatar'));assert(html.indexOf('View evidence')<html.indexOf('try-card'));
+assert(html.includes('clinicnet-continuity-v2300')===false,'theme is injected when files are written, not by renderer');
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'eden-v2300-'));const reportDir=path.join(tmp,'owner-report');fs.mkdirSync(reportDir,{recursive:true});
+const visuals=generateAuditVisuals(model,path.join(reportDir,'generated-assets'));assert(fs.readFileSync(visuals.summary,'utf8').includes('₱32,725'));assert(fs.readFileSync(visuals.fix,'utf8').includes('Respond quickly'));
+fs.writeFileSync(path.join(reportDir,'index.html'),html);fs.writeFileSync(path.join(reportDir,'owner-report-model.json'),JSON.stringify(model));
+assert(validateReport(reportDir,model,review).ok);const pub=publishPrivateAudit({reportDir,model,review,baseUrl:'http://127.0.0.1:4242',expiresInDays:30});assert(pub.url.startsWith('http://127.0.0.1:4242/private/'));const token=pub.url.split('/').pop();const found=findPublication(reportDir,token);assert(found&&found.id===pub.record.id);assert(!findPublication(reportDir,token+'bad'));recordActivity(reportDir,found,'audit_opened',{headers:{cookie:'eden_audit_session=test','user-agent':'test'}});assert.equal(publishingState(reportDir).counts.audit_opened,1);assert.equal(safePublicFile(found.dir,'../index.json'),null);
+const profile=profileFromModel(model);assert.equal(profile.assistantName,'Lia');assert(safeReply(profile,'What is the price?').includes('verify current prices'));assert(renderPreviewPage(profile).includes('no patient data'));
+assert(revokePublication(reportDir,pub.record.id));assert(!findPublication(reportDir,token));
+const studio=reviewHtml();assert(studio.includes('/api/publish'));assert(studio.includes('/api/generate-visuals'));const script=studio.match(/<script>([\s\S]*?)<\/script>/g).map(x=>x.replace(/^<script>|<\/script>$/g,'')).join('\n');new vm.Script(script);
+console.log('V2.3.0 private publishing, exact visuals, personalized preview and activity regression tests passed.');

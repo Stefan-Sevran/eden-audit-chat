@@ -69,6 +69,9 @@ const {
   createAuditIntake
 } = require("./audits/intake-v232");
 
+const { createAuditJobStore } = require("./audits/durable/audit-job-store-v240");
+const { createConfirmedAuditJobHook } = require("./audits/durable/audit-job-hook-v240");
+
 
 const app = express();
 
@@ -111,6 +114,15 @@ const voiceBookingLocks = {};
   patient-booking routes. Confirmed owner inputs enter Eden's existing
   acquisition destinations once; publication still requires human review.
 */
+const auditJobStoreV240 = createAuditJobStore({
+  supabaseUrl: SUPABASE_URL,
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY
+});
+
+const enqueueConfirmedAuditV240 = createConfirmedAuditJobHook({
+  auditJobStore: auditJobStoreV240
+});
+
 const auditIntakeV232 = createAuditIntake({
   openaiApiKey: OPENAI_API_KEY,
 
@@ -200,9 +212,23 @@ const auditIntakeV232 = createAuditIntake({
       throw new Error("No durable Audit intake destination accepted the submission");
     }
 
+    const auditJob = auditJobStoreV240.configured
+      ? await enqueueConfirmedAuditV240({
+          sessionId,
+          interview: snapshot.interview,
+          delivery: {
+            auditReference: snapshot.auditReference,
+            email: fields.email || "",
+            whatsapp: fields.whatsapp || ""
+          },
+          source: "mia-v232g-confirmed-intake"
+        })
+      : null;
+
     return {
       ok: true,
       auditReference: snapshot.auditReference,
+      auditJob,
       channels: {
         googleSheets: Boolean(sheetsResult.ok),
         telegram: Boolean(telegramResult.ok)
@@ -212,6 +238,10 @@ const auditIntakeV232 = createAuditIntake({
 });
 
 auditIntakeV232.install(app, express);
+
+if (auditJobStoreV240.configured) {
+  auditJobStoreV240.registerPublicStatusRoute(app);
+}
 
 
 const {

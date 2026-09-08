@@ -1,0 +1,11 @@
+const assert=require('assert');
+const {scoreGoogleBusiness}=require('./google-business');
+const example=require('../examples/green-apple-cebu-gbp.json');
+const scored=scoreGoogleBusiness(example);
+assert.equal(scored.status,'scored');
+assert.equal(scored.branchCount,2);
+assert.ok(scored.overall>=0&&scored.overall<=100);
+assert.ok(scored.branches.every(b=>b.overall>=0&&b.overall<=100));
+assert.equal(scored.branches[0].components.reviewRecency,null);
+assert.equal(scored.branches[0].components.visualTrust,null);
+console.log('Google Business V2 regression: PASS');

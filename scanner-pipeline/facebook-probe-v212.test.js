@@ -1,0 +1,15 @@
+const assert = require('assert');
+const { mergeFacebookEvidence } = require('./facebook-probe');
+const { scoreFacebook } = require('./facebook');
+const base={status:'awaiting-evidence',destination:{},page:{},actions:{bookButtonPresent:null,messageButtonPresent:null,whatsappButtonPresent:null,callButtonPresent:null},consistency:{},demand:{comments:[]},response:{},provenance:{sourceRefs:[]}};
+const probe={status:'probed',targetUrl:'https://www.facebook.com/TestClinic/',testedAt:'2026-08-26T00:00:00Z',destination:{httpReachable:true,landsOnClinicPage:true,genericFacebookDestination:false,wrongPage:false},page:{pageName:'Test Clinic'},actions:{bookButtonPresent:null,bookButtonStatus:'not-observed',messageButtonPresent:null,messageButtonStatus:'not-observed',whatsappButtonPresent:null,callButtonPresent:null},consistency:{brandNameMatches:true,phoneMatchesWebsite:true},demand:{comments:[]},response:{}};
+const merged=mergeFacebookEvidence(base,probe);
+assert.equal(merged.schemaVersion,'2.1.8');
+assert.equal(merged.actions.bookButtonPresent,null);
+const scored=scoreFacebook(merged);
+assert.equal(scored.components.bookingButtonIntegrity,null);
+assert.equal(scored.components.actionAccess,null);
+assert.equal(scored.status,'insufficient-evidence');
+assert.equal(scored.overall,null);
+assert.ok(scored.provisionalOverall !== null);
+console.log('facebook-probe-v212.test.js passed');

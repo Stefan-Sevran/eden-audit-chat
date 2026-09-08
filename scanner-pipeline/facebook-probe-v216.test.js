@@ -1,0 +1,12 @@
+const assert=require('assert');
+const {mergeFacebookEvidence}=require('./facebook-probe');
+const {scoreFacebook}=require('./facebook');
+const probe={schemaVersion:'2.1.8',status:'probed',targetUrl:'https://www.facebook.com/TestClinic/',testedAt:new Date().toISOString(),authentication:{requested:true,used:true,status:'authenticated-session'},destination:{httpReachable:true,landsOnClinicPage:true,genericFacebookDestination:false,wrongPage:false},page:{pageName:'Test Clinic',handle:'TestClinic'},actions:{messageButtonPresent:true,bookButtonPresent:null,whatsappButtonPresent:null,callButtonPresent:null},consistency:{brandNameMatches:true,phoneMatchesWebsite:true},demand:{comments:[]},response:{},probeDiagnostics:{commentPostDiscovery:{postsFound:0,postsInspected:0,postUrls:[],commentControlsExpanded:0,rejectedGenericCandidates:0,authenticatedObservation:true}}};
+const merged=mergeFacebookEvidence({schemaVersion:'2.1.8',status:'evidence-collected'},probe);
+assert.equal(merged.schemaVersion,'2.1.8');
+assert.equal(merged.actions.messageButtonPresent,true);
+const scored=scoreFacebook(merged);
+assert.equal(scored.status,'scored');
+assert.equal(scored.components.destinationIntegrity,100);
+assert.equal(scored.components.actionAccess,100);
+console.log('facebook probe v2.1.6 regression ok');

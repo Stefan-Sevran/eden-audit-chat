@@ -1,0 +1,13 @@
+const assert=require('assert');
+const {normalizeAutomatedFindings,evidencePacket}=require('./openai-audit-intelligence');
+const rows=[{title:'A'},{title:'B'}];
+assert.deepEqual(normalizeAutomatedFindings(rows),rows);
+const v14={version:1.4,overallScore:80,strengths:[{title:'S'}],opportunities:[{title:'O'}],observations:[{title:'I'}],findings:rows};
+assert.deepEqual(normalizeAutomatedFindings(v14),rows);
+const packet=evidencePacket({version:'2.2.2',findings:v14,summary:{},scoring:{}},{});
+assert.equal(packet.automatedFindings.length,2);
+assert.equal(packet.automatedFindings[0].title,'A');
+const fallback={opportunities:[{title:'O'}],strengths:[{title:'S'}],observations:[{title:'I'}]};
+assert.equal(normalizeAutomatedFindings(fallback).length,3);
+assert.deepEqual(normalizeAutomatedFindings(null),[]);
+console.log('openai-audit-v222 ok');

@@ -1,0 +1,11 @@
+const assert=require('assert');
+const fs=require('fs');
+const probeSrc=fs.readFileSync(__dirname+'/facebook-probe.js','utf8');
+const scoreSrc=fs.readFileSync(__dirname+'/facebook.js','utf8');
+assert(probeSrc.includes("SCHEMA_VERSION = '2.1.11'"));
+assert(scoreSrc.includes("FACEBOOK_SCHEMA_VERSION = '2.1.11'"));
+assert(probeSrc.includes('allVisibleReplyIndicators'));
+assert(probeSrc.includes('nextTop=nodeIndex+1<nodes.length'));
+assert(probeSrc.includes("document.querySelectorAll('[role=\"button\"],button,a')"));
+assert(probeSrc.includes('clinicReplyThreadsExpanded'));
+console.log('facebook probe v2.1.11 regression checks passed');

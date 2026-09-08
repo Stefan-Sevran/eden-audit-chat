@@ -1,0 +1,10 @@
+const assert=require('assert');
+const {REPORT_VERSION,buildReportModel,renderHtml}=require('./report-engine');
+const manifest={
+ version:'2.2.1',reviewedUrl:'https://clinic.example',clinicIdentity:{clinicName:'Example Dental',location:'Pattaya, Thailand'},
+ scoring:{overall:78,categories:{conversionCta:62,contactAccess:88},flags:[]},summary:{bookingCtaVisible:true,phoneActionable:true,mobileHeroClarity:74},
+ googleBusiness:{assessment:{status:'awaiting-evidence'}},facebook:{assessment:{status:'awaiting-evidence'}},
+ aiAuditIntelligence:{status:'completed',model:'gpt-test',agreement:{confirmed:7,humanReviewConflicts:1},validation:[],conflicts:[{claimId:'x'}],visualAssessments:{},narrative:{executiveSummary:'The clinic has a credible foundation but measurable conversion friction.',costingPatients:'A weak primary conversion path may cost ready-to-book patients.',topPriorities:[{title:'Make booking unmistakable',why:'The CTA score is the weakest website category.',evidenceBasis:'conversionCta 62/100'}],quickWins:[{title:'Strengthen CTA',action:'Make the booking action dominant above the fold.',evidenceBasis:'scanner CTA evidence'}],pillarExplanations:{website:'The website scored 78 because contact access is strong while conversion CTA performance is weaker.',googleBusiness:'Google Business awaits sufficient evidence.',facebook:'Facebook awaits sufficient evidence.'},caveats:['Google and Facebook are not yet scored.'],edenIntervention:'Deploy a rapid-response and booking layer after human verification.'}}
+};
+const model=buildReportModel(manifest);assert.equal(model.schemaVersion,REPORT_VERSION);assert.equal(model.priorityFindings[0].title,'Make booking unmistakable');assert(model.pillars.find(p=>p.id==='website').aiExplanation.includes('scored 78'));assert.equal(model.aiIntelligence.agreement.confirmed,7);
+const html=renderHtml(model);assert(html.includes('What may be costing you patients?'));assert(html.includes('Independent AI evidence review'));assert(html.includes('Recommended Eden intervention'));assert(html.includes('Why this score'));console.log('report-engine-v221 ok');

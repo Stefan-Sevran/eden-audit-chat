@@ -1,0 +1,13 @@
+const assert=require('assert');
+const {classifyDigitalFrontDoor,canonicalFacebookPageUrl,normalizeFacebookCandidates}=require('./digital-front-door');
+const {classifyDestination}=require('./google-business-probe');
+let x=classifyDigitalFrontDoor('https://www.facebook.com/YourDentistPattaya');
+assert.equal(x.type,'facebook-primary'); assert.equal(x.conventionalWebsite,false);
+x=classifyDigitalFrontDoor('https://clinic.example'); assert.equal(x.type,'clinic-website');
+assert.equal(canonicalFacebookPageUrl('https://www.facebook.com/YourDentistPattaya/followers/'),'https://www.facebook.com/YourDentistPattaya/');
+assert.equal(canonicalFacebookPageUrl('https://www.facebook.com/login/device-based/regular/login/?next=https%3A%2F%2Fwww.facebook.com%2FYourDentistPattaya'),'https://www.facebook.com/YourDentistPattaya/');
+assert.equal(canonicalFacebookPageUrl('https://www.facebook.com/photo/?fbid=1'),null);
+assert.deepEqual(normalizeFacebookCandidates(['https://www.facebook.com/YourDentistPattaya/followers/','https://www.facebook.com/YourDentistPattaya']),['https://www.facebook.com/YourDentistPattaya/']);
+x=classifyDestination('https://www.facebook.com/YourDentistPattaya',{auditedWebsite:'https://www.facebook.com/YourDentistPattaya',raw:{bodyText:'Message Call Now'}});
+assert.equal(x.classification,'social-profile'); assert.equal(x.ownerControl,'platform-mediated'); assert.ok(x.qualityScore>=65);
+console.log('robustness-v2222 tests passed');

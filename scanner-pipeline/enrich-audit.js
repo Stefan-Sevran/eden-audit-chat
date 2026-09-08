@@ -1,0 +1,33 @@
+const fs=require('fs');
+const path=require('path');
+const {buildReportModel,writeReportFiles}=require('./report-engine');
+const {runAuditIntelligence,writeAuditIntelligence}=require('./openai-audit-intelligence');
+const {writeJson}=require('./utils');
+const { loadRevenueInputs, buildCrossChannelGrowthModel } = require('./cross-channel-action-engine');
+const { buildPublicationGuardrails } = require('./publication-guardrails');
+
+const args=process.argv.slice(2);
+const valueAfter=f=>{const i=args.indexOf(f);return i>=0?args[i+1]||null:null;};
+const snapshotPath=args.find((v,i)=>!v.startsWith('--')&&(i===0||!['--openai-model','--human-review','--revenue-inputs','--snapshot'].includes(args[i-1])))||valueAfter('--snapshot');
+if(!snapshotPath){console.error('Usage: node scanners/enrich-audit.js audit-output/<clinic>/snapshot.json [--openai-model gpt-5.6-terra] [--human-review review.json] [--revenue-inputs revenue-inputs.json]');process.exit(1);}
+(async()=>{
+ const full=path.resolve(snapshotPath);const manifest=JSON.parse(fs.readFileSync(full,'utf8'));
+ const outDir=manifest.outputDir&&fs.existsSync(manifest.outputDir)?manifest.outputDir:path.dirname(full);
+ const draft=buildReportModel(manifest,{});
+ console.log('[audit-ai] Reviewing scanner evidence + website snapshots with OpenAI…');
+ manifest.aiAuditIntelligence=await runAuditIntelligence(manifest,draft,{enabled:true,force:true,model:valueAfter('--openai-model')||process.env.EDEN_OPENAI_MODEL||null});
+ writeAuditIntelligence(outDir,manifest.aiAuditIntelligence);
+ if(manifest.aiAuditIntelligence.status!=='completed') throw new Error(`AI enrichment ${manifest.aiAuditIntelligence.status}: ${manifest.aiAuditIntelligence.error||manifest.aiAuditIntelligence.reason||'unknown error'}`);
+ manifest.version='2.2.16';
+ const revenueInputs=loadRevenueInputs(valueAfter('--revenue-inputs'));
+ manifest.publicationGuardrails=buildPublicationGuardrails(manifest,{});
+ manifest.crossChannelGrowth=buildCrossChannelGrowthModel(manifest,{revenueInputs});
+ writeJson(path.join(outDir,'publication-guardrails.json'),manifest.publicationGuardrails);
+ writeJson(path.join(outDir,'cross-channel-actions.json'),manifest.crossChannelGrowth.actions);
+ writeJson(path.join(outDir,'revenue-opportunity.json'),manifest.crossChannelGrowth.revenue);
+ manifest.report=writeReportFiles(outDir,manifest,{humanReviewPath:valueAfter('--human-review')||process.env.EDEN_HUMAN_REVIEW||null});
+ writeJson(path.join(outDir,'snapshot.json'),manifest);
+ console.log(`[audit-ai] Complete. Agreement status: ${manifest.aiAuditIntelligence.agreement?.status||'unknown'}`);
+ console.log(`[audit-ai] Report: ${manifest.report.htmlPath}`);
+ console.log(`[audit-ai] Evidence: ${path.join(outDir,'ai-audit-intelligence.json')}`);
+})().catch(e=>{console.error(`[audit-ai] Failed: ${e.message||e}`);process.exit(1)});

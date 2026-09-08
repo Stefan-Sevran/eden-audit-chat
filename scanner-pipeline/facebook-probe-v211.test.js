@@ -1,0 +1,12 @@
+const assert = require('assert');
+const { mergeFacebookEvidence } = require('./facebook-probe');
+const base = {status:'awaiting-evidence',destination:{testedUrl:null},actions:{bookButtonPresent:null},consistency:{},demand:{comments:[]},response:{},provenance:{sourceRefs:[]}};
+const probe = {status:'probed',targetUrl:'https://www.facebook.com/TestClinic/',testedAt:'2026-08-26T00:00:00Z',destination:{testedUrl:'https://www.facebook.com/TestClinic/',finalUrl:'https://www.facebook.com/TestClinic/',landsOnClinicPage:true},actions:{bookButtonPresent:true,bookButtonWorks:true},consistency:{brandNameMatches:true},demand:{comments:[]},response:{},page:{pageName:'Test Clinic'}};
+const merged = mergeFacebookEvidence(base, probe);
+assert.equal(merged.status,'evidence-collected');
+assert.equal(merged.schemaVersion,'2.1.8');
+assert.equal(merged.destination.landsOnClinicPage,true);
+assert.equal(merged.actions.bookButtonWorks,true);
+assert.equal(merged.consistency.brandNameMatches,true);
+assert.equal(merged.provenance.source,'browser-probe-plus-manual');
+console.log('facebook-probe-v211.test.js passed');

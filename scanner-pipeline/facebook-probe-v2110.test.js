@@ -1,0 +1,10 @@
+const assert=require('assert');
+const fs=require('fs');
+const probeSrc=fs.readFileSync(__dirname+'/facebook-probe.js','utf8');
+const scoreSrc=fs.readFileSync(__dirname+'/facebook.js','utf8');
+assert(probeSrc.includes("SCHEMA_VERSION = '2.1.11'"));
+assert(probeSrc.includes('expandClinicReplyThreads'));
+for(const term of ['pila','postiso','locationIntent','clinicReplyObserved']) assert(probeSrc.includes(term));
+assert(scoreSrc.includes('hasReplyEvidence'));
+assert(scoreSrc.includes('ageHoursFromLabel'));
+console.log('facebook probe v2.1.10 regression checks passed');

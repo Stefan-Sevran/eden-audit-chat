@@ -1,0 +1,10 @@
+const assert=require('assert');
+const fs=require('fs');
+const src=fs.readFileSync(require.resolve('./facebook-probe'),'utf8');
+assert(src.includes("SCHEMA_VERSION = '2.1.22'"));
+assert(src.includes("querySelectorAll('body *')"));
+assert(src.includes('clinicReplyContainerIndicatorsLocated'));
+assert(src.includes('composed text'));
+assert(src.includes('kids.sort'));
+assert(src.includes("kind:'container'"));
+console.log('facebook-probe-v2122.test.js passed');

@@ -1,0 +1,10 @@
+const assert=require('assert');
+const {scoreFacebook}=require('./facebook');
+const evidence={schemaVersion:'2.1.8',status:'evidence-collected',destination:{httpReachable:true,landsOnClinicPage:true,genericFacebookDestination:false,wrongPage:false},actions:{messageButtonPresent:true},consistency:{brandNameMatches:true,phoneMatchesWebsite:true},demand:{comments:[]},response:{},provenance:{collectedAt:new Date().toISOString()}};
+const scored=scoreFacebook(evidence);
+assert.equal(scored.status,'scored');
+assert.equal(scored.evidenceCoverage.knownComponents,3);
+assert.equal(scored.evidenceCoverage.coverageCeiling,84);
+assert.equal(scored.overall,84);
+assert.notEqual(scored.band,'excellent');
+console.log('facebook probe v2.1.7 coverage ceiling regression ok');
