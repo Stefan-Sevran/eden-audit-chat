@@ -4,7 +4,8 @@
     "start:audit-worker": "node audit-worker-entry-v240.js",
     "test:v240": "node audits/durable/audit-jobs-v240.test.js && node audits/durable/audit-evidence-security-v240.test.js",
     "review:audit": "node audit-review-entry-v240.js",
-    "test:v241": "node scanner-pipeline/evidence-intelligence-v241.test.js && node scanner-pipeline/review-evidence-intelligence-v241.test.js"
+    "test:v241": "node scanner-pipeline/evidence-intelligence-v241.test.js && node scanner-pipeline/review-evidence-intelligence-v241.test.js",
+    "test:v242": "node scanner-pipeline/review-evidence-inspection-v242.test.js"
   },
   "dependencies": {
     "express": "^4.18.2",
