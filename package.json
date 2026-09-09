@@ -7,7 +7,8 @@
     "test:v241": "node scanner-pipeline/evidence-intelligence-v241.test.js && node scanner-pipeline/review-evidence-intelligence-v241.test.js",
     "test:v242": "node scanner-pipeline/review-evidence-inspection-v242.test.js",
     "test:v243": "node scanner-pipeline/review-contradiction-resolution-v243.test.js",
-    "test:v244": "node scanner-pipeline/journey-evidence-v244.test.js"
+    "test:v244": "node scanner-pipeline/journey-evidence-v244.test.js",
+    "test:v245": "node scanner-pipeline/cross-channel-continuity-v245.test.js"
   },
   "dependencies": {
     "express": "^4.18.2",

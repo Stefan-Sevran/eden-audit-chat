@@ -416,7 +416,44 @@ function buildEvidenceIntelligence(manifest = {}) {
       }))
     : [];
 
-  const contradictions = [...buildContradictions(manifest), ...journeyContradictions];
+
+  const continuityClaims = Array.isArray(manifest.crossChannelContinuity?.claims)
+    ? manifest.crossChannelContinuity.claims.map((item,index)=>evidenceItem({
+        id: 'continuity-' + String(item.id || index + 1),
+        pillar: 'cross-channel-continuity',
+        claim: item.title || item.id || 'Cross-channel continuity evidence',
+        tier: item.confidence || TIERS.UNKNOWN,
+        sources: item.sources || ['cross-channel-continuity-v245'],
+        publishable: item.publishable === true,
+        reason: item.reason || '',
+        value: item.value ?? null
+      }))
+    : [];
+  evidence.push(...continuityClaims);
+
+  const continuityContradictions = Array.isArray(manifest.crossChannelContinuity?.contradictions)
+    ? manifest.crossChannelContinuity.contradictions.map((item,index)=>contradiction({
+        id: 'continuity-' + String(item.id || index + 1),
+        severity: item.severity || 'medium',
+        pillar: 'cross-channel-continuity',
+        field: item.id || null,
+        title: item.title || 'Cross-channel continuity conflict',
+        positions: item.positions || [],
+        sources: ['cross-channel-continuity-v245'],
+        blocksPublication: item.blocksPublication === true,
+        reason: item.reason || ''
+      }))
+    : [];
+
+  const continuityGaps = Array.isArray(manifest.crossChannelContinuity?.gaps)
+    ? manifest.crossChannelContinuity.gaps.map((item,index)=>({
+        id: 'continuity-' + String(item.id || index + 1),
+        pillar: 'cross-channel-continuity',
+        reason: item.reason || item.title || 'Cross-channel continuity evidence is incomplete.'
+      }))
+    : [];
+
+  const contradictions = [...buildContradictions(manifest), ...journeyContradictions, ...continuityContradictions];
   const blockedIds = new Set(
     contradictions
       .filter(c => c.blocksPublication)
@@ -458,7 +495,7 @@ function buildEvidenceIntelligence(manifest = {}) {
     },
     evidence: finalEvidence,
     contradictions,
-    missingEvidence: buildMissingEvidence(manifest),
+    missingEvidence: [...buildMissingEvidence(manifest), ...continuityGaps],
     summary: {
       counts,
       publishableCount: finalEvidence.filter(x => x.publishable).length,
