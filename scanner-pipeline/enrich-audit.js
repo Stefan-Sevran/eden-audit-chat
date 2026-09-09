@@ -10,6 +10,7 @@ const { buildJourneyEvidence } = require('./journey-evidence-v244');
 const { buildCrossChannelContinuity } = require('./cross-channel-continuity-v245');
 const { buildDestinationControlIntelligence } = require('./destination-control-v246');
 const { buildPatientPathQuality } = require('./patient-path-quality-v247');
+const { buildOwnerPatientPathNarrative } = require('./owner-patient-path-narrative-v248');
 
 const args=process.argv.slice(2);
 const valueAfter=f=>{const i=args.indexOf(f);return i>=0?args[i+1]||null:null;};
@@ -33,6 +34,8 @@ if(!snapshotPath){console.error('Usage: node scanners/enrich-audit.js audit-outp
   writeJson(path.join(outDir,'destination-control.json'),manifest.destinationControl);
   manifest.patientPathQuality=buildPatientPathQuality(manifest);
   writeJson(path.join(outDir,'patient-path-quality.json'),manifest.patientPathQuality);
+  manifest.ownerPatientPathNarrative=buildOwnerPatientPathNarrative(manifest);
+  writeJson(path.join(outDir,'owner-patient-path-narrative.json'),manifest.ownerPatientPathNarrative);
   manifest.evidenceIntelligence=buildEvidenceIntelligence(manifest);
   manifest.publicationGuardrails=buildPublicationGuardrails(manifest,{});
   writeJson(path.join(outDir,'evidence-intelligence.json'),manifest.evidenceIntelligence);
