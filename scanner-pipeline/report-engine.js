@@ -163,6 +163,7 @@ function buildReportModel(manifest,{humanReview=null}={}){
     publication:{status:reviewComplete&&publicationGuardrails.status==='clear'?'client-ready':publicationGuardrails.status==='verification-required'?'verification-required':'draft',humanReview:review,trustLabel:reviewComplete&&publicationGuardrails.status==='clear'?(review.status==='verified'?'Verified by Eden':'Human reviewed'):publicationGuardrails.status==='verification-required'?'Verification required':'Pending human verification'},
     publicationGuardrails,
     evidenceIntelligence:manifest.evidenceIntelligence||null,
+    journeyEvidence:manifest.journeyEvidence||null,
     scorePolicy:{blendedOverallPublished:false,reason:manifest.digitalFrontDoor?.conventionalWebsite===false?'The primary digital front door is not an independent clinic website; channel scores are kept separate and website scoring is marked not applicable.':'Website, Google Business, and Facebook scores remain separate until cross-channel calibration is validated.',scoredPillars:scored.length,totalPillars:3},
     headline:{title:'Clinic Growth Audit',subtitle:'Evidence-backed conversion, visibility, and patient-demand diagnosis',score:null,scoreLabel:'No artificial blended score'},
     pillars:pillars.map(p=>({...p,aiExplanation:aiNarrative?.pillarExplanations?.[p.id==='google'?'googleBusiness':p.id]||null})),

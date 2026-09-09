@@ -387,7 +387,36 @@ function buildEvidenceIntelligence(manifest = {}) {
     ...buildFacebookEvidence(manifest)
   ];
 
-  const contradictions = buildContradictions(manifest);
+
+  const journeyClaims = Array.isArray(manifest.journeyEvidence?.claims)
+    ? manifest.journeyEvidence.claims.map((item,index)=>evidenceItem({
+        id: 'journey-' + String(item.id || index + 1),
+        pillar: 'booking-journey',
+        claim: item.title || item.id || 'Booking journey evidence',
+        tier: item.confidence || TIERS.UNKNOWN,
+        sources: item.sources || ['journey-evidence-v244'],
+        publishable: item.publishable === true,
+        reason: item.reason || '',
+        value: item.value ?? null
+      }))
+    : [];
+  evidence.push(...journeyClaims);
+
+  const journeyContradictions = Array.isArray(manifest.journeyEvidence?.contradictions)
+    ? manifest.journeyEvidence.contradictions.map((item,index)=>contradiction({
+        id: 'journey-' + String(item.id || index + 1),
+        severity: item.severity || 'medium',
+        pillar: 'booking-journey',
+        field: item.id || null,
+        title: item.title || 'Booking journey evidence conflict',
+        positions: [],
+        sources: ['journey-evidence-v244'],
+        blocksPublication: item.blocksPublication === true,
+        reason: item.reason || ''
+      }))
+    : [];
+
+  const contradictions = [...buildContradictions(manifest), ...journeyContradictions];
   const blockedIds = new Set(
     contradictions
       .filter(c => c.blocksPublication)
