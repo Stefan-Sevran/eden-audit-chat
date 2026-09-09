@@ -8,6 +8,7 @@ const { buildPublicationGuardrails } = require('./publication-guardrails');
 const { buildEvidenceIntelligence } = require('./evidence-intelligence-v241');
 const { buildJourneyEvidence } = require('./journey-evidence-v244');
 const { buildCrossChannelContinuity } = require('./cross-channel-continuity-v245');
+const { buildDestinationControlIntelligence } = require('./destination-control-v246');
 
 const args=process.argv.slice(2);
 const valueAfter=f=>{const i=args.indexOf(f);return i>=0?args[i+1]||null:null;};
@@ -27,6 +28,8 @@ if(!snapshotPath){console.error('Usage: node scanners/enrich-audit.js audit-outp
   writeJson(path.join(outDir,'journey-evidence.json'),manifest.journeyEvidence);
   manifest.crossChannelContinuity=buildCrossChannelContinuity(manifest);
   writeJson(path.join(outDir,'cross-channel-continuity.json'),manifest.crossChannelContinuity);
+  manifest.destinationControl=buildDestinationControlIntelligence(manifest);
+  writeJson(path.join(outDir,'destination-control.json'),manifest.destinationControl);
   manifest.evidenceIntelligence=buildEvidenceIntelligence(manifest);
   manifest.publicationGuardrails=buildPublicationGuardrails(manifest,{});
   writeJson(path.join(outDir,'evidence-intelligence.json'),manifest.evidenceIntelligence);

@@ -453,7 +453,44 @@ function buildEvidenceIntelligence(manifest = {}) {
       }))
     : [];
 
-  const contradictions = [...buildContradictions(manifest), ...journeyContradictions, ...continuityContradictions];
+
+  const destinationClaims = Array.isArray(manifest.destinationControl?.claims)
+    ? manifest.destinationControl.claims.map((item,index)=>evidenceItem({
+        id: 'destination-' + String(item.id || index + 1),
+        pillar: 'destination-control',
+        claim: item.title || item.id || 'Destination ownership evidence',
+        tier: item.confidence || TIERS.UNKNOWN,
+        sources: item.sources || ['destination-control-v246'],
+        publishable: item.publishable === true,
+        reason: item.reason || '',
+        value: item.value ?? null
+      }))
+    : [];
+  evidence.push(...destinationClaims);
+
+  const destinationContradictions = Array.isArray(manifest.destinationControl?.contradictions)
+    ? manifest.destinationControl.contradictions.map((item,index)=>contradiction({
+        id: 'destination-' + String(item.id || index + 1),
+        severity: item.severity || 'medium',
+        pillar: 'destination-control',
+        field: item.id || null,
+        title: item.title || 'Destination ownership/control conflict',
+        positions: item.positions || [],
+        sources: ['destination-control-v246'],
+        blocksPublication: item.blocksPublication === true,
+        reason: item.reason || ''
+      }))
+    : [];
+
+  const destinationGaps = Array.isArray(manifest.destinationControl?.gaps)
+    ? manifest.destinationControl.gaps.map((item,index)=>({
+        id: 'destination-' + String(item.id || index + 1),
+        pillar: 'destination-control',
+        reason: item.reason || item.title || 'Destination ownership evidence is incomplete.'
+      }))
+    : [];
+
+  const contradictions = [...buildContradictions(manifest), ...journeyContradictions, ...continuityContradictions, ...destinationContradictions];
   const blockedIds = new Set(
     contradictions
       .filter(c => c.blocksPublication)
@@ -495,7 +532,7 @@ function buildEvidenceIntelligence(manifest = {}) {
     },
     evidence: finalEvidence,
     contradictions,
-    missingEvidence: [...buildMissingEvidence(manifest), ...continuityGaps],
+    missingEvidence: [...buildMissingEvidence(manifest), ...continuityGaps, ...destinationGaps],
     summary: {
       counts,
       publishableCount: finalEvidence.filter(x => x.publishable).length,
