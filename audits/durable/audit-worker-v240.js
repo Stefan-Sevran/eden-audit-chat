@@ -7,6 +7,17 @@ function createAuditWorker({ auditJobStore, runEvidencePipeline, workerId = `aud
   async function runOnce() {
     const job = await auditJobStore.claim(workerId);
     if (!job) return { claimed: false };
+    let heartbeat = null;
+
+    if (typeof auditJobStore.renewLease === 'function') {
+      heartbeat = setInterval(() => {
+        auditJobStore.renewLease(job.id, workerId).catch(error =>
+          logger.error('Audit worker lease heartbeat failed:', job.id, error)
+        );
+      }, 5 * 60 * 1000);
+      heartbeat.unref?.();
+    }
+
     try {
       const result = await runEvidencePipeline({
         jobId: job.id,
@@ -14,15 +25,31 @@ function createAuditWorker({ auditJobStore, runEvidencePipeline, workerId = `aud
         intake: job.intake,
         delivery: job.delivery
       });
+
       await auditJobStore.markReview(job.id, {
         evidencePacket: result?.evidencePacket || result?.evidence || null,
         internal: result?.internal || result || null
       });
+
       return { claimed: true, jobId: job.id, status: 'review', result };
+
     } catch (error) {
       logger.error('Audit worker job failed:', job.id, error);
+
+      if (typeof auditJobStore.retryOrFail === 'function') {
+        const row = await auditJobStore.retryOrFail(job, error, 4);
+        const status =
+          row?.status ||
+          (Number(job.attempts || 0) < 4 ? 'queued' : 'failed');
+
+        return { claimed: true, jobId: job.id, status, error };
+      }
+
       await auditJobStore.markFailed(job.id, error);
       return { claimed: true, jobId: job.id, status: 'failed', error };
+
+    } finally {
+      if (heartbeat) clearInterval(heartbeat);
     }
   }
 

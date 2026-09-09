@@ -126,6 +126,38 @@ function createAuditJobStore({ supabaseUrl, serviceRoleKey, fetchImpl = global.f
     });
   }
 
+  async function renewLease(id, workerId, leaseMs = 30 * 60 * 1000) {
+    if (!id) throw new Error('Audit job id is required.');
+    const query = `/rest/v1/audit_jobs?id=eq.${encodeURIComponent(id)}&status=eq.scanning&worker_id=eq.${encodeURIComponent(String(workerId || ''))}`;
+    const data = await request(query, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: {
+        lease_expires_at: new Date(Date.now() + leaseMs).toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    });
+    return Array.isArray(data) ? data[0] || null : data;
+  }
+
+  async function retryOrFail(job, error, maxAttempts = 4) {
+    if (!job?.id) throw new Error('Audit job is required.');
+    const message = String(error?.message || error || 'Audit worker failed').slice(0, 4000);
+
+    if (Number(job.attempts || 0) < maxAttempts) {
+      return update(job.id, {
+        status: 'queued',
+        stage: 'evidence',
+        worker_id: null,
+        last_error: message,
+        completed_at: null,
+        lease_expires_at: null
+      });
+    }
+
+    return markFailed(job.id, error);
+  }
+
   function registerPublicStatusRoute(app) {
     app.get('/audit-job-status/:publicToken', async (req, res) => {
       try {
@@ -150,6 +182,8 @@ function createAuditJobStore({ supabaseUrl, serviceRoleKey, fetchImpl = global.f
     markReview,
     markPublished,
     markFailed,
+    renewLease,
+    retryOrFail,
     registerPublicStatusRoute
   };
 }
