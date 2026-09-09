@@ -5,6 +5,7 @@ const {runAuditIntelligence,writeAuditIntelligence}=require('./openai-audit-inte
 const {writeJson}=require('./utils');
 const { loadRevenueInputs, buildCrossChannelGrowthModel } = require('./cross-channel-action-engine');
 const { buildPublicationGuardrails } = require('./publication-guardrails');
+const { buildEvidenceIntelligence } = require('./evidence-intelligence-v241');
 
 const args=process.argv.slice(2);
 const valueAfter=f=>{const i=args.indexOf(f);return i>=0?args[i+1]||null:null;};
@@ -20,7 +21,9 @@ if(!snapshotPath){console.error('Usage: node scanners/enrich-audit.js audit-outp
  if(manifest.aiAuditIntelligence.status!=='completed') throw new Error(`AI enrichment ${manifest.aiAuditIntelligence.status}: ${manifest.aiAuditIntelligence.error||manifest.aiAuditIntelligence.reason||'unknown error'}`);
  manifest.version='2.2.16';
  const revenueInputs=loadRevenueInputs(valueAfter('--revenue-inputs'));
- manifest.publicationGuardrails=buildPublicationGuardrails(manifest,{});
+ manifest.evidenceIntelligence=buildEvidenceIntelligence(manifest);
+  manifest.publicationGuardrails=buildPublicationGuardrails(manifest,{});
+  writeJson(path.join(outDir,'evidence-intelligence.json'),manifest.evidenceIntelligence);
  manifest.crossChannelGrowth=buildCrossChannelGrowthModel(manifest,{revenueInputs});
  writeJson(path.join(outDir,'publication-guardrails.json'),manifest.publicationGuardrails);
  writeJson(path.join(outDir,'cross-channel-actions.json'),manifest.crossChannelGrowth.actions);
