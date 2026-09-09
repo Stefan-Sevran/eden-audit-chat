@@ -29,6 +29,65 @@ function normalizeReportCopy(value,depth=0){
   }
   return out;
 }
+
+function normalizeEvidenceResolutions(value={}){
+  const allowed=new Set(['resolved','accepted','withheld']);
+  const out={};
+  if(!value||typeof value!=='object'||Array.isArray(value))return out;
+  for(const [rawId,item] of Object.entries(value).slice(0,100)){
+    const id=safeText(rawId).trim().slice(0,160);
+    if(!id||!item||typeof item!=='object')continue;
+    const decision=safeText(item.decision).trim().toLowerCase();
+    if(!allowed.has(decision))continue;
+    const note=safeText(item.note).trim().slice(0,2000);
+    out[id]={
+      decision,
+      note,
+      updatedAt:safeText(item.updatedAt).trim()||new Date().toISOString()
+    };
+  }
+  return out;
+}
+
+function validateEvidenceResolutions(manifest,review={}){
+  const contradictions=Array.isArray(manifest?.evidenceIntelligence?.contradictions)
+    ? manifest.evidenceIntelligence.contradictions
+    : [];
+  const blocking=contradictions.filter(x=>x&&x.blocksPublication===true);
+  const resolutions=normalizeEvidenceResolutions(review.evidenceResolutions||{});
+  const unresolved=[];
+
+  for(const conflict of blocking){
+    const id=safeText(conflict.id).trim();
+    const resolution=id?resolutions[id]:null;
+    if(!resolution){
+      unresolved.push({
+        id:id||'unknown-conflict',
+        title:safeText(conflict.title).trim()||'Blocking evidence contradiction',
+        reason:'No reviewer resolution has been recorded.'
+      });
+      continue;
+    }
+
+    if(resolution.note.length<8){
+      unresolved.push({
+        id,
+        title:safeText(conflict.title).trim()||id,
+        decision:resolution.decision,
+        reason:'Add a short reviewer note explaining why this contradiction is resolved, accepted, or withheld.'
+      });
+    }
+  }
+
+  return {
+    ok:unresolved.length===0,
+    blockingCount:blocking.length,
+    resolvedCount:blocking.length-unresolved.length,
+    unresolved,
+    resolutions
+  };
+}
+
 function normalizeReview(body={},template={}){
   const addFindings=Array.isArray(body.addFindings)?body.addFindings.map((x,i)=>({
     id:safeText(x.id).trim()||`manual-${Date.now()}-${i+1}`,
@@ -61,6 +120,7 @@ function normalizeReview(body={},template={}){
     addFindings,
     reportCopy:normalizeReportCopy(body.reportCopy),
     preview:{assistantName:safeText(body.preview?.assistantName).trim()||'Mia',greeting:safeText(body.preview?.greeting).trim(),verifiedFacts:(Array.isArray(body.preview?.verifiedFacts)?body.preview.verifiedFacts:safeText(body.preview?.verifiedFacts).split(/\r?\n/)).map(safeText).map(x=>x.trim()).filter(Boolean).slice(0,30),implementationUrl:safeText(body.preview?.implementationUrl).trim()},
+    evidenceResolutions:normalizeEvidenceResolutions(body.evidenceResolutions||template.evidenceResolutions||{}),
     publishing:{humanApproved:body.publishing?.humanApproved===true,expiresInDays:Math.min(365,Math.max(1,Number(body.publishing?.expiresInDays)||30))},
     reviewerNote:safeText(body.reviewerNote).trim()
   };
@@ -106,7 +166,7 @@ function createReviewApp({snapshotPath,port=4242,openBrowser=true}={}){
       json(res,400,{ok:false,error:String(error.message||error)});
     }
   };
-routes['POST /api/publish']=async(req,res)=>{try{const body=await readBody(req);const review=readJson(reviewPath,template);if(body.humanApproved===true)review.publishing={...(review.publishing||{}),humanApproved:true,expiresInDays:Number(body.expiresInDays)||review.publishing?.expiresInDays||30};if(!review.visuals?.coverImage&&!review.visuals?.fixImage){const draft=buildOwnerReportModel(manifest,{ownerReview:review});const made=generateAuditVisuals(draft,path.join(reportDir,'generated-assets'));review.visuals={...(review.visuals||{}),coverImage:made.summary,fixImage:made.fix};}writeJson(reviewPath,review);const result=writeOwnerReportFiles(outDir,manifest,{ownerReviewPath:reviewPath,coverImage:review.visuals?.coverImage,fixImage:review.visuals?.fixImage,beforeImage:review.visuals?.beforeImage,afterImage:review.visuals?.afterImage});const model=readJson(result.modelPath);const forwarded=String(req.headers['x-forwarded-proto']||'').split(',')[0];const proto=forwarded||'http';const baseUrl=process.env.EDEN_PUBLIC_BASE_URL||`${proto}://${req.headers.host}`;const published=publishPrivateAudit({reportDir,model,review,baseUrl,expiresInDays:review.publishing.expiresInDays});const durableSync=await syncPublishedAuditJob({outDir,reportUrl:published.url,report:{publicationId:published.record.id,expiresAt:published.record.expiresAt}});json(res,200,{ok:true,url:published.url,expiresAt:published.record.expiresAt,warnings:published.validation.warnings,durableSync});}catch(error){json(res,400,{ok:false,error:String(error.message||error),validation:error.validation||null});}};
+routes['POST /api/publish']=async(req,res)=>{try{const body=await readBody(req);const review=readJson(reviewPath,template);if(body.humanApproved===true)review.publishing={...(review.publishing||{}),humanApproved:true,expiresInDays:Number(body.expiresInDays)||review.publishing?.expiresInDays||30};const resolutionValidation=validateEvidenceResolutions(manifest,review);if(!resolutionValidation.ok){const error=new Error('Resolve every blocking evidence contradiction before private publication.');error.validation=resolutionValidation;throw error;}if(!review.visuals?.coverImage&&!review.visuals?.fixImage){const draft=buildOwnerReportModel(manifest,{ownerReview:review});const made=generateAuditVisuals(draft,path.join(reportDir,'generated-assets'));review.visuals={...(review.visuals||{}),coverImage:made.summary,fixImage:made.fix};}writeJson(reviewPath,review);const result=writeOwnerReportFiles(outDir,manifest,{ownerReviewPath:reviewPath,coverImage:review.visuals?.coverImage,fixImage:review.visuals?.fixImage,beforeImage:review.visuals?.beforeImage,afterImage:review.visuals?.afterImage});const model=readJson(result.modelPath);const forwarded=String(req.headers['x-forwarded-proto']||'').split(',')[0];const proto=forwarded||'http';const baseUrl=process.env.EDEN_PUBLIC_BASE_URL||`${proto}://${req.headers.host}`;const published=publishPrivateAudit({reportDir,model,review,baseUrl,expiresInDays:review.publishing.expiresInDays});const durableSync=await syncPublishedAuditJob({outDir,reportUrl:published.url,report:{publicationId:published.record.id,expiresAt:published.record.expiresAt,evidenceResolutionSummary:resolutionValidation,evidenceResolutions:review.evidenceResolutions||{}}});json(res,200,{ok:true,url:published.url,expiresAt:published.record.expiresAt,warnings:published.validation.warnings,durableSync});}catch(error){json(res,400,{ok:false,error:String(error.message||error),validation:error.validation||null});}};
   
 function evidenceFilesForReview(root){
   const allowed=new Set(['.png','.jpg','.jpeg','.webp','.json','.html','.htm','.txt','.md','.pdf']);
@@ -191,7 +251,9 @@ function reviewHtml(){return `<!doctype html><html><head><meta charset="utf-8"><
 :root{--ink:#10241d;--muted:#64756d;--line:#dce6e1;--paper:#f6f8f6;--green:#173d31;--soft:#e9f1ed;--warm:#f6efe2;--gold:#b78b45;--red:#8c3e2f}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:1180px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:22px}.brand{font-weight:900;letter-spacing:.18em;font-size:12px}.top-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.pill{border:1px solid var(--line);background:white;padding:8px 12px;border-radius:999px;font-size:12px}.connection{font-weight:800}.connection.ok{background:#e5f4eb;color:#17603b;border-color:#c9e6d5}.connection.bad{background:#f8e9e6;color:var(--red);border-color:#edcec7}.hero{background:var(--green);color:white;border-radius:24px;padding:28px 32px;margin-bottom:18px}.hero h1{font-family:Georgia,serif;font-size:38px;margin:6px 0}.hero p{margin:0;color:#cfddd6}.app-error{display:none;background:#fff1ee;color:#7b3025;border:1px solid #e8c2ba;border-radius:14px;padding:12px 14px;margin:0 0 16px;font-weight:700;white-space:pre-wrap}.app-error.show{display:block}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px}.card h2{font-family:Georgia,serif;font-size:25px;margin:0 0 14px}.card h3{font-family:Georgia,serif;font-size:20px;margin:8px 0}.label{display:block;text-transform:uppercase;letter-spacing:.12em;font-size:9px;font-weight:900;color:var(--muted);margin:14px 0 6px}input,textarea,select{width:100%;border:1px solid #cedbd5;border-radius:10px;background:#fbfcfb;color:var(--ink);font:inherit;padding:10px 11px}textarea{min-height:88px;resize:vertical}.primary{background:var(--warm);border:0}.candidate{border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}.candidate.primary-candidate{background:var(--soft)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.btn{border:0;border-radius:10px;padding:11px 14px;font-weight:800;cursor:pointer;background:var(--green);color:white}.btn.secondary{background:var(--gold)}.btn.light{background:#e7efeb;color:var(--ink)}.btn.danger{background:#f6e6e2;color:var(--red)}.btn.small{padding:7px 10px;font-size:12px}.sticky{position:sticky;bottom:12px;background:rgba(246,248,246,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;gap:9px;box-shadow:0 8px 28px rgba(16,36,29,.09)}.status{font-size:12px;color:var(--muted);align-self:center;margin-left:auto}.money{display:grid;grid-template-columns:1fr 1fr;gap:10px}.money>div{background:var(--soft);border-radius:12px;padding:12px}.money strong{font-family:Georgia,serif;font-size:22px;display:block}.manual{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.hint{font-size:12px;color:var(--muted)}@media(max-width:850px){.grid{grid-template-columns:1fr}.wrap{padding:16px}.hero h1{font-size:32px}.sticky{flex-wrap:wrap}.money{grid-template-columns:1fr}}
 
 .evidence-drawer{position:fixed;inset:0;background:#10151fcc;z-index:9999;display:none;align-items:flex-start;justify-content:center;padding:5vh 3vw;overflow:auto}.evidence-drawer.show{display:flex}.evidence-shell{width:min(1100px,94vw);background:white;border-radius:18px;box-shadow:0 24px 80px #0005;padding:18px}.evidence-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;padding-bottom:10px;z-index:2}.evidence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.evidence-file{border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}.evidence-file img{width:100%;height:240px;object-fit:contain;background:#f5f6f5;border-radius:8px}.evidence-file iframe{width:100%;height:260px;border:0;background:#f5f6f5;border-radius:8px}.evidence-file a{word-break:break-all}.evidence-file .path{font-size:11px;color:var(--muted);word-break:break-all;margin-top:6px}.inspect-btn{margin-top:8px}@media(max-width:760px){.evidence-grid{grid-template-columns:1fr}.evidence-shell{width:96vw}}
-.evidence-intel{border-color:#cadbd3}.intel-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 16px}.intel-stat{background:#f3f7f5;border:1px solid var(--line);border-radius:12px;padding:10px}.intel-stat strong{display:block;font-family:Georgia,serif;font-size:22px}.intel-section{margin-top:16px}.intel-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin:8px 0;background:#fbfcfb}.intel-item.blocking{border-color:#e2aaa0;background:#fff3f0}.intel-item.unknown{background:#f7f7f5}.intel-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.intel-badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.intel-badge.verified{background:#dff2e7;color:#17603b}.intel-badge.supported{background:#e6eef8;color:#294f78}.intel-badge.probable{background:#fff1cf;color:#765616}.intel-badge.unknown{background:#eceeed;color:#59635e}.intel-badge.block{background:#f6ded9;color:#8c3e2f}.intel-meta{font-size:11px;color:var(--muted);margin-top:5px;word-break:break-word}.intel-reason{margin:7px 0 0}.intel-empty{font-size:12px;color:var(--muted);padding:10px 0}@media(max-width:700px){.intel-summary{grid-template-columns:1fr 1fr}}.publish{background:linear-gradient(145deg,#11143f,#342665);color:#fff}.publish .hint{color:#d9d5f3}.publish input{background:#fff}.signals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.signals div{background:#ffffff14;border-radius:10px;padding:10px}.signals strong{display:block;font-size:22px}.private-link{word-break:break-all;background:#ffffff14;padding:10px;border-radius:10px;display:none;margin-top:10px}.check{display:flex;gap:9px;align-items:flex-start;margin:12px 0}.check input{width:auto;margin-top:4px}
+.evidence-intel{border-color:#cadbd3}.intel-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 16px}.intel-stat{background:#f3f7f5;border:1px solid var(--line);border-radius:12px;padding:10px}.intel-stat strong{display:block;font-family:Georgia,serif;font-size:22px}.intel-section{margin-top:16px}.intel-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin:8px 0;background:#fbfcfb}.intel-item.blocking{border-color:#e2aaa0;background:#fff3f0}.intel-item.unknown{background:#f7f7f5}.intel-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.intel-badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.intel-badge.verified{background:#dff2e7;color:#17603b}.intel-badge.supported{background:#e6eef8;color:#294f78}.intel-badge.probable{background:#fff1cf;color:#765616}.intel-badge.unknown{background:#eceeed;color:#59635e}.intel-badge.block{background:#f6ded9;color:#8c3e2f}.intel-meta{font-size:11px;color:var(--muted);margin-top:5px;word-break:break-word}
+.resolution-box{margin-top:12px;padding:12px;border-radius:10px;background:#f7f9f8;border:1px dashed #cad7d1}.resolution-box.blocking{background:#fff8f6;border-color:#e0b5ac}.resolution-box select,.resolution-box textarea{margin-top:6px}.resolution-box textarea{min-height:68px}.resolution-status{font-size:11px;font-weight:800;margin-top:7px}.resolution-status.ok{color:#17603b}.resolution-status.pending{color:#8c3e2f}
+.intel-reason{margin:7px 0 0}.intel-empty{font-size:12px;color:var(--muted);padding:10px 0}@media(max-width:700px){.intel-summary{grid-template-columns:1fr 1fr}}.publish{background:linear-gradient(145deg,#11143f,#342665);color:#fff}.publish .hint{color:#d9d5f3}.publish input{background:#fff}.signals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.signals div{background:#ffffff14;border-radius:10px;padding:10px}.signals strong{display:block;font-size:22px}.private-link{word-break:break-all;background:#ffffff14;padding:10px;border-radius:10px;display:none;margin-top:10px}.check{display:flex;gap:9px;align-items:flex-start;margin:12px 0}.check input{width:auto;margin-top:4px}
 </style><script>
 window.__edenStudioVisibleError=function(message){var box=document.getElementById('appError');var conn=document.getElementById('connection');if(box){box.textContent='Review Studio error: '+String(message||'Unknown browser error');box.classList.add('show');}if(conn){conn.textContent='Studio disconnected';conn.className='pill connection bad';}};
 window.addEventListener('error',function(event){window.__edenStudioVisibleError(event.message||event.error||'Browser script failed.');});
@@ -210,7 +272,7 @@ window.addEventListener('unhandledrejection',function(event){window.__edenStudio
   </div>
 </div>
 <script>
-let state=null;let hidden=new Set();let manuals=[];let copyDraft={};
+let state=null;let hidden=new Set();let manuals=[];let copyDraft={};let evidenceResolutions={};
 const q=id=>document.getElementById(id);
 const COPY_GROUPS=[
   ['heroFields',[['clinic.name','Clinic name'],['clinic.location','Clinic location'],['hero.eyebrow','Eyebrow'],['hero.headline','Headline'],['hero.intro','Body text']]],
@@ -223,7 +285,7 @@ function showError(error){setConnected(false);const message=error&&error.message
 function clearError(){const box=q('appError');if(box){box.textContent='';box.classList.remove('show');}}
 function money(v,c='PHP'){if(v==null)return '—';try{return new Intl.NumberFormat('en-US',{style:'currency',currency:c,maximumFractionDigits:0}).format(v)}catch{return c+' '+Math.round(v).toLocaleString()}}
 async function requestJson(url,options){const response=await fetch(url,options);let data=null;try{data=await response.json();}catch(error){throw new Error('Invalid response from Review Studio server.');}if(!response.ok||data&&data.ok===false)throw new Error(data&&data.error?data.error:'Review Studio request failed ('+response.status+').');return data;}
-async function loadState(){try{q('status').textContent='Loading…';clearError();state=await requestJson('/api/state');hidden=new Set(state.review.hideFindingIds||[]);manuals=(state.review.addFindings||[]).filter(x=>x.id!=='manual-example');copyDraft=JSON.parse(JSON.stringify(state.editableCopy||{}));q('clinic').textContent=state.clinic.name+(state.clinic.location?' · '+state.clinic.location:'');const e=state.economics||{};q('risk').textContent=e.revenueExposed?money(e.revenueExposed.low,e.currency)+(e.revenueExposed.high!==e.revenueExposed.low?'–'+money(e.revenueExposed.high,e.currency):''):'—';q('recover').textContent=e.recoverableRevenue?money(e.recoverableRevenue.conservative,e.currency)+'–'+money(e.recoverableRevenue.upside,e.currency):'—';renderCandidates();renderManuals();renderCopyFields();renderEvidenceIntelligence();const p=state.currentTop?.[0]||state.candidates?.[0]||{};fillPrimary(p,state.review.primaryOpportunity);q('note').value=state.review.reviewerNote||'';q('cover').value=state.review.visuals?.coverImage||'';q('fixImage').value=state.review.visuals?.fixImage||'';q('beforeImage').value=state.review.visuals?.beforeImage||'';q('afterImage').value=state.review.visuals?.afterImage||'';setConnected(true);q('status').textContent='Ready';return state;}catch(error){showError(error);return null;}}
+async function loadState(){try{q('status').textContent='Loading…';clearError();state=await requestJson('/api/state');evidenceResolutions=JSON.parse(JSON.stringify(state.review.evidenceResolutions||{}));hidden=new Set(state.review.hideFindingIds||[]);manuals=(state.review.addFindings||[]).filter(x=>x.id!=='manual-example');copyDraft=JSON.parse(JSON.stringify(state.editableCopy||{}));q('clinic').textContent=state.clinic.name+(state.clinic.location?' · '+state.clinic.location:'');const e=state.economics||{};q('risk').textContent=e.revenueExposed?money(e.revenueExposed.low,e.currency)+(e.revenueExposed.high!==e.revenueExposed.low?'–'+money(e.revenueExposed.high,e.currency):''):'—';q('recover').textContent=e.recoverableRevenue?money(e.recoverableRevenue.conservative,e.currency)+'–'+money(e.recoverableRevenue.upside,e.currency):'—';renderCandidates();renderManuals();renderCopyFields();renderEvidenceIntelligence();const p=state.currentTop?.[0]||state.candidates?.[0]||{};fillPrimary(p,state.review.primaryOpportunity);q('note').value=state.review.reviewerNote||'';q('cover').value=state.review.visuals?.coverImage||'';q('fixImage').value=state.review.visuals?.fixImage||'';q('beforeImage').value=state.review.visuals?.beforeImage||'';q('afterImage').value=state.review.visuals?.afterImage||'';setConnected(true);q('status').textContent='Ready';return state;}catch(error){showError(error);return null;}}
 function getCopy(path){return path.split('.').reduce(function(value,key){return value==null?undefined:value[key];},copyDraft);}
 function setCopy(path,value){const parts=path.split('.');let target=copyDraft;parts.forEach(function(key,i){if(i===parts.length-1)target[key]=value;else target=target[key]||(target[key]={});});}
 function renderCopyFields(){COPY_GROUPS.forEach(function(group){const root=q(group[0]);root.replaceChildren();group[1].forEach(function(def){const wrap=make('div');wrap.appendChild(make('label','label',def[1]));const isLong=/intro|body|text|detail|disclaimer/.test(def[0]);const input=make(isLong?'textarea':'input');if(isLong)input.style.minHeight='64px';const value=getCopy(def[0]);input.value=value==null?'':String(value);input.dataset.copyPath=def[0];wrap.appendChild(input);root.appendChild(wrap);});});}
@@ -337,6 +399,77 @@ function installEvidenceDrawer(){
   });
 }
 
+
+function resolutionFor(id){
+  return evidenceResolutions[id]||{decision:'',note:'',updatedAt:null};
+}
+
+function appendResolutionControls(card,item){
+  if(!item?.id)return;
+  const current=resolutionFor(item.id);
+  const box=make('div','resolution-box '+(item.blocksPublication?'blocking':''));
+  box.appendChild(make('div','label',item.blocksPublication?'Required reviewer resolution':'Optional reviewer resolution'));
+
+  const select=make('select');
+  [
+    ['', 'Unresolved'],
+    ['resolved','Resolved — sources reconciled'],
+    ['accepted','Accepted — reviewer accepts a supported position'],
+    ['withheld','Withheld — disputed fact excluded from publication']
+  ].forEach(function(def){
+    const option=make('option','',def[1]);
+    option.value=def[0];
+    if(def[0]===current.decision)option.selected=true;
+    select.appendChild(option);
+  });
+
+  const note=make('textarea');
+  note.placeholder=item.blocksPublication
+    ? 'Required: briefly explain what you verified, which position you accepted, or why the disputed fact is withheld.'
+    : 'Optional reviewer note.';
+  note.value=current.note||'';
+
+  const status=make(
+    'div',
+    'resolution-status '+(current.decision&&String(current.note||'').trim().length>=8?'ok':'pending'),
+    current.decision&&String(current.note||'').trim().length>=8
+      ? 'Resolution recorded ✓'
+      : (item.blocksPublication?'Publication remains blocked until resolved.':'No resolution recorded.')
+  );
+
+  function saveLocal(){
+    const decision=select.value;
+    const text=note.value.trim();
+    if(!decision){
+      delete evidenceResolutions[item.id];
+    }else{
+      evidenceResolutions[item.id]={
+        decision,
+        note:text,
+        updatedAt:new Date().toISOString()
+      };
+    }
+    const complete=Boolean(decision&&text.length>=8);
+    status.textContent=complete?'Resolution recorded ✓':(item.blocksPublication?'Publication remains blocked until resolved.':'Resolution note incomplete.');
+    status.className='resolution-status '+(complete?'ok':'pending');
+  }
+
+  select.addEventListener('change',saveLocal);
+  note.addEventListener('input',saveLocal);
+  box.append(select,note,status);
+  card.appendChild(box);
+}
+
+function unresolvedBlockingContradictions(){
+  const conflicts=Array.isArray(state?.evidenceIntelligence?.contradictions)
+    ? state.evidenceIntelligence.contradictions.filter(x=>x?.blocksPublication===true)
+    : [];
+  return conflicts.filter(function(item){
+    const r=evidenceResolutions[item.id];
+    return !r||!['resolved','accepted','withheld'].includes(r.decision)||String(r.note||'').trim().length<8;
+  });
+}
+
 function renderEvidenceIntelligence(){
   const intel=state?.evidenceIntelligence||null;
   const summary=q('evidenceSummary'),root=q('evidenceIntel');
@@ -402,6 +535,7 @@ function renderEvidenceIntelligence(){
     if(Array.isArray(item.positions)&&item.positions.length)card.appendChild(make('div','intel-meta','Positions: '+item.positions.join(' ↔ ')));
     if(Array.isArray(item.sources)&&item.sources.length)card.appendChild(make('div','intel-meta','Sources: '+item.sources.join(' · ')));
     attachInspectButton(card,item);
+    appendResolutionControls(card,item);
     conflictWrap.appendChild(card);
   });
 
@@ -453,12 +587,12 @@ q('manuals').addEventListener('input',function(event){const target=event.target;
 q('manuals').addEventListener('change',function(event){const target=event.target;const i=Number(target.dataset.manualIndex);const key=target.dataset.manualField;if(Number.isInteger(i)&&manuals[i]&&key)manuals[i][key]=target.value;});
 function copyInput(event){const target=event.target;const path=target.dataset.copyPath;if(path)setCopy(path,target.value);}
 ['heroFields','coreFields','visualFields','solutionFields'].forEach(function(id){q(id).addEventListener('input',copyInput);});
-let publishingUiInstalled=false;function installPublishingUI(){if(typeof document.querySelector!=='function'||typeof document.querySelectorAll!=='function')return;document.querySelector('.top-right .pill:last-child').textContent='Owner Review Studio · V2.3.0';const card=make('div','card publish');card.innerHTML='<h2>5. Approve + publish privately</h2><p class="hint">Generate exact-data visuals, approve the final Audit, then create an expiring magic link. The published copy is frozen.</p><label class="label">Receptionist name</label><input id="assistantName" value="Mia"><label class="label">Personalized greeting</label><textarea id="previewGreeting" style="min-height:64px"></textarea><label class="label">Implementation request URL (optional)</label><input id="implementationUrl" placeholder="https://clinicnet.live/contact"><button id="visualsBtn" class="btn light" type="button" style="margin-top:12px">Generate exact report visuals</button><div class="signals"><div><span class="label">Audit opened</span><strong id="sigOpen">0</strong></div><div><span class="label">Evidence viewed</span><strong id="sigEvidence">0</strong></div><div><span class="label">Preview started</span><strong id="sigPreview">0</strong></div><div><span class="label">Implementation asked</span><strong id="sigImplement">0</strong></div></div><label class="check"><input id="humanApproved" type="checkbox"><span>I reviewed the final Audit and approve this exact version for private publication.</span></label><label class="label">Link expires after</label><select id="expiresDays"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option></select><button id="publishBtn" class="btn" type="button" style="margin-top:12px">Approve + create private link</button><div class="private-link" id="privateLink"></div>';const right=document.querySelectorAll('.grid>div')[1];right.insertBefore(card,right.lastElementChild);publishingUiInstalled=true;q('visualsBtn').addEventListener('click',generateVisuals);q('publishBtn').addEventListener('click',publishAudit);}
+let publishingUiInstalled=false;function installPublishingUI(){if(typeof document.querySelector!=='function'||typeof document.querySelectorAll!=='function')return;document.querySelector('.top-right .pill:last-child').textContent='Owner Review Studio · V2.4.3';const card=make('div','card publish');card.innerHTML='<h2>5. Approve + publish privately</h2><p class="hint">Generate exact-data visuals, approve the final Audit, then create an expiring magic link. The published copy is frozen.</p><label class="label">Receptionist name</label><input id="assistantName" value="Mia"><label class="label">Personalized greeting</label><textarea id="previewGreeting" style="min-height:64px"></textarea><label class="label">Implementation request URL (optional)</label><input id="implementationUrl" placeholder="https://clinicnet.live/contact"><button id="visualsBtn" class="btn light" type="button" style="margin-top:12px">Generate exact report visuals</button><div class="signals"><div><span class="label">Audit opened</span><strong id="sigOpen">0</strong></div><div><span class="label">Evidence viewed</span><strong id="sigEvidence">0</strong></div><div><span class="label">Preview started</span><strong id="sigPreview">0</strong></div><div><span class="label">Implementation asked</span><strong id="sigImplement">0</strong></div></div><label class="check"><input id="humanApproved" type="checkbox"><span>I reviewed the final Audit and approve this exact version for private publication.</span></label><label class="label">Link expires after</label><select id="expiresDays"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option></select><button id="publishBtn" class="btn" type="button" style="margin-top:12px">Approve + create private link</button><div class="private-link" id="privateLink"></div>';const right=document.querySelectorAll('.grid>div')[1];right.insertBefore(card,right.lastElementChild);publishingUiInstalled=true;q('visualsBtn').addEventListener('click',generateVisuals);q('publishBtn').addEventListener('click',publishAudit);}
 function applyPublishingState(){if(!publishingUiInstalled)return;const review=state?.review||{},p=review.preview||{},pub=review.publishing||{},counts=state?.publishing?.counts||{};q('assistantName').value=p.assistantName||'Mia';q('previewGreeting').value=p.greeting||('Hi — I’m the AI receptionist preview for '+state.clinic.name+'. What can I help you with?');q('verifiedFacts').value=(p.verifiedFacts||[]).join('\\n');q('implementationUrl').value=p.implementationUrl||'';q('humanApproved').checked=pub.humanApproved===true;q('expiresDays').value=String(pub.expiresInDays||30);q('sigOpen').textContent=counts.audit_opened||0;q('sigEvidence').textContent=counts.evidence_viewed||0;q('sigPreview').textContent=counts.preview_started||0;q('sigImplement').textContent=counts.implementation_requested||0;}
 const originalLoadState=loadState;loadState=async function(){const result=await originalLoadState();if(result)applyPublishingState();return result;};
-const originalPayload=payload;payload=function(){const value=originalPayload();value.schemaVersion='2.3.0';if(publishingUiInstalled){value.preview={assistantName:q('assistantName').value,greeting:q('previewGreeting').value,verifiedFacts:q('verifiedFacts').value.split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean),implementationUrl:q('implementationUrl').value};value.publishing={humanApproved:q('humanApproved').checked,expiresInDays:Number(q('expiresDays').value)};}return value;};
+const originalPayload=payload;payload=function(){const value=originalPayload();value.schemaVersion='2.3.0';value.evidenceResolutions=evidenceResolutions;if(publishingUiInstalled){value.preview={assistantName:q('assistantName').value,greeting:q('previewGreeting').value,verifiedFacts:q('verifiedFacts').value.split(/\\r?\\n/).map(x=>x.trim()).filter(Boolean),implementationUrl:q('implementationUrl').value};value.publishing={humanApproved:q('humanApproved').checked,expiresInDays:Number(q('expiresDays').value)};}return value;};
 async function generateVisuals(){try{q('status').textContent='Generating exact visuals…';const r=await requestJson('/api/generate-visuals',{method:'POST'});q('cover').value=r.visuals.summary;q('fixImage').value=r.visuals.fix;q('status').textContent='Exact visuals generated ✓';await loadState();}catch(error){showError(error);}}
-async function publishAudit(){if(!q('humanApproved').checked){showError(new Error('Tick human approval after reviewing the final Audit.'));return;}try{q('status').textContent='Freezing + publishing…';await save();const r=await requestJson('/api/publish',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({humanApproved:true,expiresInDays:Number(q('expiresDays').value)})});const link=q('privateLink');link.style.display='block';link.innerHTML='<strong>Private link created</strong><br><a style="color:white" target="_blank" rel="noopener"></a><br><small>Expires '+new Date(r.expiresAt).toLocaleString()+'</small>';link.querySelector('a').href=r.url;link.querySelector('a').textContent=r.url;q('status').textContent='Private Audit published ✓';await navigator.clipboard?.writeText(r.url).catch(()=>{});}catch(error){showError(error);}}
+async function publishAudit(){if(!q('humanApproved').checked){showError(new Error('Tick human approval after reviewing the final Audit.'));return;}const unresolved=unresolvedBlockingContradictions();if(unresolved.length){showError(new Error('Resolve every blocking evidence contradiction and add a short reviewer note before publishing.'));return;}try{q('status').textContent='Freezing + publishing…';await save();const r=await requestJson('/api/publish',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({humanApproved:true,expiresInDays:Number(q('expiresDays').value)})});const link=q('privateLink');link.style.display='block';link.innerHTML='<strong>Private link created</strong><br><a style="color:white" target="_blank" rel="noopener"></a><br><small>Expires '+new Date(r.expiresAt).toLocaleString()+'</small>';link.querySelector('a').href=r.url;link.querySelector('a').textContent=r.url;q('status').textContent='Private Audit published ✓';await navigator.clipboard?.writeText(r.url).catch(()=>{});}catch(error){showError(error);}}
 async function revokeLatest(){const current=(state?.publishing?.publications||[]).find(x=>x.status==='active'&&!x.revokedAt);if(!current){showError(new Error('There is no active private link to revoke.'));return;}if(!confirm('Revoke the latest private Audit link?'))return;try{await requestJson('/api/revoke',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:current.id})});q('privateLink').style.display='none';await loadState();q('status').textContent='Private link revoked';}catch(error){showError(error);}}
 installEvidenceDrawer();installPublishingUI();if(publishingUiInstalled){const implementation=q('implementationUrl');const factsLabel=make('label','label','Verified clinic facts — one per line');const facts=make('textarea');facts.id='verifiedFacts';facts.style.minHeight='88px';facts.placeholder='Offers dental implants\\nOpen Monday–Saturday\\nEnglish and Cebuano';implementation.parentNode.insertBefore(factsLabel,implementation.previousElementSibling);implementation.parentNode.insertBefore(facts,implementation.previousElementSibling);const revoke=make('button','btn danger','Revoke latest private link');revoke.type='button';revoke.style.marginTop='8px';revoke.addEventListener('click',revokeLatest);document.querySelector('.publish').appendChild(revoke);}loadState();
 </script></body></html>`.replaceAll('2.2.50','2.3.0');}
@@ -470,4 +604,4 @@ if(require.main===module){
   if(!snapshot){console.error('Usage: node scanners/review-owner-report.js audit-output/<clinic>/snapshot.json [--port 4242]');process.exit(1);}
   try{createReviewApp({snapshotPath:snapshot,port});}catch(error){console.error(`Owner Review Studio failed: ${error.message||error}`);process.exit(1);}
 }
-module.exports={createReviewApp,normalizeReview,resolveSnapshot,reviewHtml};
+module.exports={createReviewApp,normalizeReview,resolveSnapshot,reviewHtml,validateEvidenceResolutions,normalizeEvidenceResolutions};
