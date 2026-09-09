@@ -11,7 +11,8 @@
     "test:v245": "node scanner-pipeline/cross-channel-continuity-v245.test.js",
     "test:v246": "node scanner-pipeline/destination-control-v246.test.js",
     "test:v247": "node scanner-pipeline/patient-path-quality-v247.test.js",
-    "test:v248": "node scanner-pipeline/owner-patient-path-narrative-v248.test.js"
+    "test:v248": "node scanner-pipeline/owner-patient-path-narrative-v248.test.js",
+    "test:v249": "node scanner-pipeline/opportunity-prioritization-v249.test.js"
   },
   "dependencies": {
     "express": "^4.18.2",
