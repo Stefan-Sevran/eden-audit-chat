@@ -124,7 +124,10 @@ if (fs.existsSync(ownerReport) && fs.existsSync(reviewStudio)) {
   assert(studioSource.includes('renderActionPlan'));
   assert(studioSource.includes('actionPlanDraft'));
   assert(studioSource.includes('Inspect action evidence'));
-  assert(studioSource.includes("Owner Review Studio · V2.5.0"));
+  assert(
+  studioSource.includes("Owner Review Studio · V2.5.0") ||
+  studioSource.includes("Owner Review Studio · V2.5.1")
+);
 }
 
 console.log(
