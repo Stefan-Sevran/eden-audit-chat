@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createAuditJobStore } = require('./audits/durable/audit-job-store-v240');
 const { createAuditWorker } = require('./audits/durable/audit-worker-v240');
+const { createAuditEvidenceStorage } = require('./audits/durable/audit-evidence-storage-v240');
 const { runSnapshotAudit } = require('./scanner-pipeline/snapshot');
 
 const store = createAuditJobStore({
@@ -9,6 +10,16 @@ const store = createAuditJobStore({
   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
 });
 if (!store.configured) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for the Audit worker.');
+
+const evidenceStorage = createAuditEvidenceStorage({
+  supabaseUrl: process.env.SUPABASE_URL,
+  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  bucket: process.env.EDEN_AUDIT_EVIDENCE_BUCKET || 'audit-evidence'
+});
+
+if (!evidenceStorage.configured) {
+  throw new Error('Supabase evidence storage is not configured.');
+}
 
 function publicPageFromIntake(intake) {
   return intake?.clinic?.websiteUrl || intake?.clinic?.website || intake?.fields?.websiteUrl || intake?.fields?.website || null;
@@ -39,18 +50,29 @@ async function runEvidencePipeline({ jobId, sessionId, intake, delivery }) {
     headless: true,
     onProgress: msg => console.log(`[audit ${jobId}] ${msg}`)
   });
+  const storage = await evidenceStorage.uploadDirectory(jobId, manifest.outputDir);
+
   return {
     evidencePacket: {
-      outputDir: manifest.outputDir,
       reviewedUrl: manifest.reviewedUrl,
       finalUrl: manifest.finalUrl,
       clinicIdentity: manifest.clinicIdentity || null,
       unifiedEvidenceSummary: manifest.unifiedEvidenceSummary || null,
       crossChannelIntegrity: manifest.crossChannelIntegrity || null,
       publicationGuardrails: manifest.publicationGuardrails || null,
-      ownerReport: manifest.ownerReport || null
+      ownerReport: manifest.ownerReport || null,
+      durableEvidence: {
+        bucket: storage.bucket,
+        prefix: storage.prefix,
+        manifestPath: storage.manifestPath,
+        fileCount: storage.fileCount
+      }
     },
-    internal: { outputDir: manifest.outputDir, snapshotPath: path.join(manifest.outputDir, 'snapshot.json') }
+    internal: {
+      localOutputDir: manifest.outputDir,
+      localSnapshotPath: path.join(manifest.outputDir, 'snapshot.json'),
+      durableEvidence: storage
+    }
   };
 }
 
