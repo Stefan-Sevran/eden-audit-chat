@@ -490,6 +490,29 @@ function buildEvidenceIntelligence(manifest = {}) {
       }))
     : [];
 
+
+  const patientPathClaims = Array.isArray(manifest.patientPathQuality?.claims)
+    ? manifest.patientPathQuality.claims.map((item,index)=>evidenceItem({
+        id: 'patient-path-' + String(item.id || index + 1),
+        pillar: 'patient-path-quality',
+        claim: item.title || item.id || 'Patient path quality evidence',
+        tier: item.confidence || TIERS.UNKNOWN,
+        sources: item.sources || ['patient-path-quality-v247'],
+        publishable: item.publishable === true,
+        reason: item.reason || '',
+        value: item.value ?? null
+      }))
+    : [];
+  evidence.push(...patientPathClaims);
+
+  const patientPathGaps = Array.isArray(manifest.patientPathQuality?.gaps)
+    ? manifest.patientPathQuality.gaps.map((item,index)=>({
+        id: 'patient-path-' + String(item.id || index + 1),
+        pillar: 'patient-path-quality',
+        reason: item.reason || item.title || 'Patient-path evidence is incomplete.'
+      }))
+    : [];
+
   const contradictions = [...buildContradictions(manifest), ...journeyContradictions, ...continuityContradictions, ...destinationContradictions];
   const blockedIds = new Set(
     contradictions
@@ -532,7 +555,7 @@ function buildEvidenceIntelligence(manifest = {}) {
     },
     evidence: finalEvidence,
     contradictions,
-    missingEvidence: [...buildMissingEvidence(manifest), ...continuityGaps, ...destinationGaps],
+    missingEvidence: [...buildMissingEvidence(manifest), ...continuityGaps, ...destinationGaps, ...patientPathGaps],
     summary: {
       counts,
       publishableCount: finalEvidence.filter(x => x.publishable).length,

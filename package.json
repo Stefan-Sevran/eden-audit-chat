@@ -9,7 +9,8 @@
     "test:v243": "node scanner-pipeline/review-contradiction-resolution-v243.test.js",
     "test:v244": "node scanner-pipeline/journey-evidence-v244.test.js",
     "test:v245": "node scanner-pipeline/cross-channel-continuity-v245.test.js",
-    "test:v246": "node scanner-pipeline/destination-control-v246.test.js"
+    "test:v246": "node scanner-pipeline/destination-control-v246.test.js",
+    "test:v247": "node scanner-pipeline/patient-path-quality-v247.test.js"
   },
   "dependencies": {
     "express": "^4.18.2",
