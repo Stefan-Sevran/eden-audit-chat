@@ -114,6 +114,129 @@ function createAuditEvidenceReview({
     );
   }
 
+  async function getEvidenceManifest(jobId) {
+    const job = await getJob(jobId);
+
+    if (!job) {
+      const error = new Error('Audit job not found.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const durable = durableEvidenceFor(job);
+
+    if (!durable) {
+      const error = new Error(
+        'Durable evidence is not available for this Audit.'
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const expectedPrefix = String(job.id);
+    const storedPrefix = String(
+      durable.prefix || expectedPrefix
+    );
+    const storedBucket = String(
+      durable.bucket || bucket
+    );
+
+    if (
+      storedPrefix !== expectedPrefix ||
+      storedBucket !== bucket
+    ) {
+      throw new Error(
+        'Audit evidence manifest failed validation.'
+      );
+    }
+
+    const manifestPath = String(
+      durable.manifestPath ||
+      `${expectedPrefix}/storage-manifest.json`
+    );
+
+    if (
+      manifestPath !==
+      `${expectedPrefix}/storage-manifest.json`
+    ) {
+      throw new Error(
+        'Audit evidence manifest path failed validation.'
+      );
+    }
+
+    const response = await fetchImpl(
+      `${base}/storage/v1/object/authenticated/` +
+      `${encodeURIComponent(bucket)}/` +
+      `${encodeObjectPath(manifestPath)}`,
+      {
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          'Cache-Control': 'no-store'
+        }
+      }
+    );
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        `Could not load Audit evidence manifest (${response.status}).`
+      );
+    }
+
+    let manifest;
+
+    try {
+      manifest = JSON.parse(text);
+    } catch {
+      throw new Error(
+        'Audit evidence manifest is not valid JSON.'
+      );
+    }
+
+    if (
+      manifest?.bucket !== bucket ||
+      manifest?.prefix !== expectedPrefix ||
+      !Array.isArray(manifest?.files)
+    ) {
+      throw new Error(
+        'Audit evidence manifest contents failed validation.'
+      );
+    }
+
+    const files = manifest.files.map(file => {
+      const objectPath = String(file?.path || '');
+      const prefix = `${expectedPrefix}/`;
+
+      if (!objectPath.startsWith(prefix)) {
+        throw new Error(
+          'Audit evidence file escaped its job prefix.'
+        );
+      }
+
+      const relativePath =
+        objectPath.slice(prefix.length);
+
+      normalizeRelativePath(relativePath);
+
+      return {
+        path: relativePath,
+        bytes: Number(file?.bytes || 0),
+        contentType:
+          String(file?.contentType || '')
+      };
+    });
+
+    return {
+      jobId: expectedPrefix,
+      fileCount: files.length,
+      uploadedAt:
+        manifest.uploadedAt || null,
+      files
+    };
+  }
+
   async function signEvidence({
     jobId,
     relativePath
@@ -206,6 +329,40 @@ function createAuditEvidenceReview({
     }
 
     app.post(
+      '/admin/audit-evidence/manifest',
+      requireAdmin,
+      async (req, res) => {
+        try {
+          const result =
+            await getEvidenceManifest(
+              req.body?.jobId
+            );
+
+          res.set(
+            'Cache-Control',
+            'no-store'
+          );
+
+          return res.json({
+            ok: true,
+            ...result
+          });
+        } catch (error) {
+          console.error(
+            'Audit evidence manifest error:',
+            error.message
+          );
+
+          return res
+            .status(error.statusCode || 400)
+            .json({
+              error: error.message
+            });
+        }
+      }
+    );
+
+    app.post(
       '/admin/audit-evidence/sign',
       requireAdmin,
       async (req, res) => {
@@ -242,6 +399,7 @@ function createAuditEvidenceReview({
     bucket,
     expiresIn,
     getJob,
+    getEvidenceManifest,
     signEvidence,
     registerReviewRoutes
   };

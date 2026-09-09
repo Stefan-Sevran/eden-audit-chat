@@ -245,7 +245,246 @@ async function run() {
   }
 
   // ------------------------------------------------------------
-  // 7. Admin middleware is mandatory for reviewer route
+  // 7. Evidence manifest browsing is job-isolated
+  // ------------------------------------------------------------
+  {
+    const calls = [];
+
+    const review = createAuditEvidenceReview({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-secret',
+      fetchImpl: async (url, options = {}) => {
+        calls.push({ url, options });
+
+        if (url.includes('/rest/v1/audit_jobs')) {
+          return response(200, [{
+            id: 'job-123',
+            status: 'review',
+            internal_result: {
+              durableEvidence: {
+                bucket: 'audit-evidence',
+                prefix: 'job-123',
+                manifestPath:
+                  'job-123/storage-manifest.json'
+              }
+            }
+          }]);
+        }
+
+        if (
+          url.includes(
+            '/storage/v1/object/authenticated/'
+          )
+        ) {
+          return response(200, {
+            version: '2.4.0',
+            bucket: 'audit-evidence',
+            prefix: 'job-123',
+            uploadedAt:
+              '2026-09-09T00:00:00Z',
+            files: [
+              {
+                path:
+                  'job-123/homepage.png',
+                bytes: 1234,
+                contentType: 'image/png'
+              },
+              {
+                path:
+                  'job-123/snapshot.json',
+                bytes: 4321,
+                contentType:
+                  'application/json'
+              }
+            ]
+          });
+        }
+
+        return response(
+          404,
+          { message: 'Unexpected request' }
+        );
+      }
+    });
+
+    const manifest =
+      await review.getEvidenceManifest(
+        'job-123'
+      );
+
+    assert.equal(
+      manifest.jobId,
+      'job-123'
+    );
+
+    assert.equal(
+      manifest.fileCount,
+      2
+    );
+
+    assert.deepEqual(
+      manifest.files,
+      [
+        {
+          path: 'homepage.png',
+          bytes: 1234,
+          contentType: 'image/png'
+        },
+        {
+          path: 'snapshot.json',
+          bytes: 4321,
+          contentType:
+            'application/json'
+        }
+      ]
+    );
+
+    assert.equal(calls.length, 2);
+
+    assert.match(
+      calls[1].url,
+      /job-123\/storage-manifest\.json/
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 8. Manifest metadata cannot escape its Audit job
+  // ------------------------------------------------------------
+  {
+    const review = createAuditEvidenceReview({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-secret',
+      fetchImpl: async () => response(200, [{
+        id: 'job-123',
+        status: 'review',
+        internal_result: {
+          durableEvidence: {
+            bucket: 'audit-evidence',
+            prefix: 'job-123',
+            manifestPath:
+              'job-OTHER/storage-manifest.json'
+          }
+        }
+      }])
+    });
+
+    await expectReject(
+      () =>
+        review.getEvidenceManifest(
+          'job-123'
+        ),
+      'manifest path failed validation'
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 9. Manifest file list cannot contain cross-job objects
+  // ------------------------------------------------------------
+  {
+    let requestCount = 0;
+
+    const review = createAuditEvidenceReview({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-secret',
+      fetchImpl: async (url) => {
+        requestCount += 1;
+
+        if (
+          url.includes(
+            '/rest/v1/audit_jobs'
+          )
+        ) {
+          return response(200, [{
+            id: 'job-123',
+            status: 'review',
+            internal_result: {
+              durableEvidence: {
+                bucket: 'audit-evidence',
+                prefix: 'job-123',
+                manifestPath:
+                  'job-123/storage-manifest.json'
+              }
+            }
+          }]);
+        }
+
+        return response(200, {
+          version: '2.4.0',
+          bucket: 'audit-evidence',
+          prefix: 'job-123',
+          files: [
+            {
+              path:
+                'job-OTHER/secret.png',
+              bytes: 999,
+              contentType: 'image/png'
+            }
+          ]
+        });
+      }
+    });
+
+    await expectReject(
+      () =>
+        review.getEvidenceManifest(
+          'job-123'
+        ),
+      'escaped its job prefix'
+    );
+
+    assert.equal(
+      requestCount,
+      2
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 10. Manifest bucket/prefix must match stored Audit job
+  // ------------------------------------------------------------
+  {
+    const review = createAuditEvidenceReview({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-secret',
+      fetchImpl: async (url) => {
+        if (
+          url.includes(
+            '/rest/v1/audit_jobs'
+          )
+        ) {
+          return response(200, [{
+            id: 'job-123',
+            status: 'review',
+            internal_result: {
+              durableEvidence: {
+                bucket: 'audit-evidence',
+                prefix: 'job-123',
+                manifestPath:
+                  'job-123/storage-manifest.json'
+              }
+            }
+          }]);
+        }
+
+        return response(200, {
+          version: '2.4.0',
+          bucket: 'audit-evidence',
+          prefix: 'job-OTHER',
+          files: []
+        });
+      }
+    });
+
+    await expectReject(
+      () =>
+        review.getEvidenceManifest(
+          'job-123'
+        ),
+      'manifest contents failed validation'
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 11. Admin middleware is mandatory for reviewer route
   // ------------------------------------------------------------
   {
     const review = createAuditEvidenceReview({
