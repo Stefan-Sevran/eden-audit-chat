@@ -71,6 +71,7 @@ const {
 
 const { createAuditJobStore } = require("./audits/durable/audit-job-store-v240");
 const { createConfirmedAuditJobHook } = require("./audits/durable/audit-job-hook-v240");
+const { createAuditEvidenceReview } = require("./audits/durable/audit-evidence-review-v240");
 
 
 const app = express();
@@ -121,6 +122,13 @@ const auditJobStoreV240 = createAuditJobStore({
 
 const enqueueConfirmedAuditV240 = createConfirmedAuditJobHook({
   auditJobStore: auditJobStoreV240
+});
+
+const auditEvidenceReviewV240 = createAuditEvidenceReview({
+  supabaseUrl: SUPABASE_URL,
+  serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
+  bucket: process.env.EDEN_AUDIT_EVIDENCE_BUCKET || "audit-evidence",
+  expiresIn: 300
 });
 
 const auditIntakeV232 = createAuditIntake({
@@ -625,6 +633,13 @@ function requireInboxAdmin(req, res, next) {
   }
 
   next();
+}
+
+if (auditEvidenceReviewV240.configured) {
+  auditEvidenceReviewV240.registerReviewRoutes(
+    app,
+    requireInboxAdmin
+  );
 }
 
 const CLINICS = createClinics();
