@@ -87,7 +87,7 @@ function createReviewApp({snapshotPath,port=4242,openBrowser=true}={}){
   routes['GET /api/state']=async(_req,res)=>{
     const review=readJson(reviewPath,template);
     const reviewedModel=buildOwnerReportModel(manifest,{ownerReview:review});
-    json(res,200,{version:'2.3.0',clinic:reviewedModel.clinic,economics:baseModel.economics,editableCopy:reviewedModel.copy,reviewPath,reportPath:path.join(reportDir,'index.html'),candidates:baseModel.topOpportunities||[],currentTop:reviewedModel.topOpportunities||[],review,publishing:publishingState(reportDir)});
+    json(res,200,{version:'2.3.0',clinic:reviewedModel.clinic,economics:baseModel.economics,editableCopy:reviewedModel.copy,reviewPath,reportPath:path.join(reportDir,'index.html'),candidates:baseModel.topOpportunities||[],currentTop:reviewedModel.topOpportunities||[],review,publishing:publishingState(reportDir),evidenceIntelligence:manifest.evidenceIntelligence||null});
   };
   routes['POST /api/save']=async(req,res)=>{
     try{const body=await readBody(req);const normalized=normalizeReview(body,template);writeJson(reviewPath,normalized);const result=writeOwnerReportFiles(outDir,manifest,{ownerReviewPath:reviewPath,coverImage:normalized.visuals.coverImage,fixImage:normalized.visuals.fixImage,beforeImage:normalized.visuals.beforeImage,afterImage:normalized.visuals.afterImage});json(res,200,{ok:true,reviewPath,reportPath:result.htmlPath});}
@@ -113,12 +113,12 @@ function createReviewApp({snapshotPath,port=4242,openBrowser=true}={}){
 
 function reviewHtml(){return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Eden Owner Review Studio</title><style>
 :root{--ink:#10241d;--muted:#64756d;--line:#dce6e1;--paper:#f6f8f6;--green:#173d31;--soft:#e9f1ed;--warm:#f6efe2;--gold:#b78b45;--red:#8c3e2f}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:1180px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:22px}.brand{font-weight:900;letter-spacing:.18em;font-size:12px}.top-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.pill{border:1px solid var(--line);background:white;padding:8px 12px;border-radius:999px;font-size:12px}.connection{font-weight:800}.connection.ok{background:#e5f4eb;color:#17603b;border-color:#c9e6d5}.connection.bad{background:#f8e9e6;color:var(--red);border-color:#edcec7}.hero{background:var(--green);color:white;border-radius:24px;padding:28px 32px;margin-bottom:18px}.hero h1{font-family:Georgia,serif;font-size:38px;margin:6px 0}.hero p{margin:0;color:#cfddd6}.app-error{display:none;background:#fff1ee;color:#7b3025;border:1px solid #e8c2ba;border-radius:14px;padding:12px 14px;margin:0 0 16px;font-weight:700;white-space:pre-wrap}.app-error.show{display:block}.grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px}.card h2{font-family:Georgia,serif;font-size:25px;margin:0 0 14px}.card h3{font-family:Georgia,serif;font-size:20px;margin:8px 0}.label{display:block;text-transform:uppercase;letter-spacing:.12em;font-size:9px;font-weight:900;color:var(--muted);margin:14px 0 6px}input,textarea,select{width:100%;border:1px solid #cedbd5;border-radius:10px;background:#fbfcfb;color:var(--ink);font:inherit;padding:10px 11px}textarea{min-height:88px;resize:vertical}.primary{background:var(--warm);border:0}.candidate{border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}.candidate.primary-candidate{background:var(--soft)}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.btn{border:0;border-radius:10px;padding:11px 14px;font-weight:800;cursor:pointer;background:var(--green);color:white}.btn.secondary{background:var(--gold)}.btn.light{background:#e7efeb;color:var(--ink)}.btn.danger{background:#f6e6e2;color:var(--red)}.btn.small{padding:7px 10px;font-size:12px}.sticky{position:sticky;bottom:12px;background:rgba(246,248,246,.94);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;gap:9px;box-shadow:0 8px 28px rgba(16,36,29,.09)}.status{font-size:12px;color:var(--muted);align-self:center;margin-left:auto}.money{display:grid;grid-template-columns:1fr 1fr;gap:10px}.money>div{background:var(--soft);border-radius:12px;padding:12px}.money strong{font-family:Georgia,serif;font-size:22px;display:block}.manual{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.hint{font-size:12px;color:var(--muted)}@media(max-width:850px){.grid{grid-template-columns:1fr}.wrap{padding:16px}.hero h1{font-size:32px}.sticky{flex-wrap:wrap}.money{grid-template-columns:1fr}}
-.publish{background:linear-gradient(145deg,#11143f,#342665);color:#fff}.publish .hint{color:#d9d5f3}.publish input{background:#fff}.signals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.signals div{background:#ffffff14;border-radius:10px;padding:10px}.signals strong{display:block;font-size:22px}.private-link{word-break:break-all;background:#ffffff14;padding:10px;border-radius:10px;display:none;margin-top:10px}.check{display:flex;gap:9px;align-items:flex-start;margin:12px 0}.check input{width:auto;margin-top:4px}
+.evidence-intel{border-color:#cadbd3}.intel-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0 16px}.intel-stat{background:#f3f7f5;border:1px solid var(--line);border-radius:12px;padding:10px}.intel-stat strong{display:block;font-family:Georgia,serif;font-size:22px}.intel-section{margin-top:16px}.intel-item{border:1px solid var(--line);border-radius:12px;padding:12px;margin:8px 0;background:#fbfcfb}.intel-item.blocking{border-color:#e2aaa0;background:#fff3f0}.intel-item.unknown{background:#f7f7f5}.intel-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.intel-badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.intel-badge.verified{background:#dff2e7;color:#17603b}.intel-badge.supported{background:#e6eef8;color:#294f78}.intel-badge.probable{background:#fff1cf;color:#765616}.intel-badge.unknown{background:#eceeed;color:#59635e}.intel-badge.block{background:#f6ded9;color:#8c3e2f}.intel-meta{font-size:11px;color:var(--muted);margin-top:5px;word-break:break-word}.intel-reason{margin:7px 0 0}.intel-empty{font-size:12px;color:var(--muted);padding:10px 0}@media(max-width:700px){.intel-summary{grid-template-columns:1fr 1fr}}.publish{background:linear-gradient(145deg,#11143f,#342665);color:#fff}.publish .hint{color:#d9d5f3}.publish input{background:#fff}.signals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.signals div{background:#ffffff14;border-radius:10px;padding:10px}.signals strong{display:block;font-size:22px}.private-link{word-break:break-all;background:#ffffff14;padding:10px;border-radius:10px;display:none;margin-top:10px}.check{display:flex;gap:9px;align-items:flex-start;margin:12px 0}.check input{width:auto;margin-top:4px}
 </style><script>
 window.__edenStudioVisibleError=function(message){var box=document.getElementById('appError');var conn=document.getElementById('connection');if(box){box.textContent='Review Studio error: '+String(message||'Unknown browser error');box.classList.add('show');}if(conn){conn.textContent='Studio disconnected';conn.className='pill connection bad';}};
 window.addEventListener('error',function(event){window.__edenStudioVisibleError(event.message||event.error||'Browser script failed.');});
 window.addEventListener('unhandledrejection',function(event){window.__edenStudioVisibleError(event.reason&&event.reason.message?event.reason.message:event.reason||'Unhandled browser error.');});
-</script></head><body><div class="wrap"><div class="top"><div class="brand">EDEN CLINIC NETWORK</div><div class="top-right"><div class="pill connection bad" id="connection">Studio disconnected</div><div class="pill">Owner Review Studio · V2.2.50</div></div></div><div id="appError" class="app-error"></div><div class="hero"><div id="clinic">Loading clinic…</div><h1>Edit the lean owner Audit.</h1><p>Each report area is edited in one place: eyebrow, headline, body and visual stay together.</p></div><div class="grid"><div><div class="card"><h2>1. Audit headline</h2><p class="hint">Clinic identity, eyebrow, headline, body and optional hero image.</p><div id="heroFields"></div><label class="label">Hero image path (optional)</label><input id="cover" placeholder="/Users/.../hero.jpg"></div><div class="card primary"><h2>2. Loss, opportunity and fix</h2><div class="money"><div><span class="label">Calculated revenue at risk</span><strong id="risk">—</strong></div><div><span class="label">Calculated recoverable</span><strong id="recover">—</strong></div></div><p class="hint">Calculated values stay visible here. The displayed report values and all tile wording are editable below.</p><div id="coreFields"></div><label class="label">Primary opportunity</label><select id="primarySelect"></select><label class="label">Problem headline</label><textarea id="title"></textarea><label class="label">Problem body</label><textarea id="diagnosis"></textarea><label class="label">Fix headline</label><textarea id="fix"></textarea><label class="label">Fix body</label><textarea id="eden"></textarea></div></div><div><div class="card"><h2>3. Show the change</h2><p class="hint">Use one fix image, or separate before/after images. If all image paths are blank, the clean text comparison remains.</p><div id="visualFields"></div><label class="label">Single fix image (optional; replaces comparison)</label><input id="fixImage" placeholder="/Users/.../fix.jpg"><div class="row"><div><label class="label">Before image (optional)</label><input id="beforeImage" placeholder="/Users/.../before.jpg"></div><div><label class="label">After image (optional)</label><input id="afterImage" placeholder="/Users/.../after.jpg"></div></div></div><div class="card"><h2>4. Try the solution</h2><div id="solutionFields"></div></div><details class="card"><summary><strong>Optional review controls</strong></summary><p class="hint">Change the primary finding, hide a scanner finding, add a human finding, or leave an internal note.</p><div id="candidates"></div><div id="manuals"></div><button id="addFindingBtn" class="btn light" type="button">+ Add finding</button><label class="label">Reviewer note</label><textarea id="note" style="min-height:60px"></textarea></details></div></div><div id="copyFields" hidden></div><div class="sticky"><button id="saveBtn" class="btn" type="button">Save + Regenerate Audit</button><button id="openBtn" class="btn secondary" type="button">Open Audit</button><button id="reloadBtn" class="btn light" type="button">Reload</button><button id="resetBtn" class="btn danger" type="button">Reset review</button><div class="status" id="status"></div></div></div><script>
+</script></head><body><div class="wrap"><div class="top"><div class="brand">EDEN CLINIC NETWORK</div><div class="top-right"><div class="pill connection bad" id="connection">Studio disconnected</div><div class="pill">Owner Review Studio · V2.2.50</div></div></div><div id="appError" class="app-error"></div><div class="hero"><div id="clinic">Loading clinic…</div><h1>Edit the lean owner Audit.</h1><p>Each report area is edited in one place: eyebrow, headline, body and visual stay together.</p></div><div class="grid"><div><div class="card"><h2>1. Audit headline</h2><p class="hint">Clinic identity, eyebrow, headline, body and optional hero image.</p><div id="heroFields"></div><label class="label">Hero image path (optional)</label><input id="cover" placeholder="/Users/.../hero.jpg"></div><div class="card primary"><h2>2. Loss, opportunity and fix</h2><div class="money"><div><span class="label">Calculated revenue at risk</span><strong id="risk">—</strong></div><div><span class="label">Calculated recoverable</span><strong id="recover">—</strong></div></div><p class="hint">Calculated values stay visible here. The displayed report values and all tile wording are editable below.</p><div id="coreFields"></div><label class="label">Primary opportunity</label><select id="primarySelect"></select><label class="label">Problem headline</label><textarea id="title"></textarea><label class="label">Problem body</label><textarea id="diagnosis"></textarea><label class="label">Fix headline</label><textarea id="fix"></textarea><label class="label">Fix body</label><textarea id="eden"></textarea></div></div><div><div class="card"><h2>3. Show the change</h2><p class="hint">Use one fix image, or separate before/after images. If all image paths are blank, the clean text comparison remains.</p><div id="visualFields"></div><label class="label">Single fix image (optional; replaces comparison)</label><input id="fixImage" placeholder="/Users/.../fix.jpg"><div class="row"><div><label class="label">Before image (optional)</label><input id="beforeImage" placeholder="/Users/.../before.jpg"></div><div><label class="label">After image (optional)</label><input id="afterImage" placeholder="/Users/.../after.jpg"></div></div></div><div class="card"><h2>4. Try the solution</h2><div id="solutionFields"></div></div><div class="card evidence-intel"><h2>Evidence confidence</h2><p class="hint">Reviewer-only confidence, provenance, contradictions and withheld evidence. This panel is not included in the clinic-facing Audit.</p><div id="evidenceSummary" class="intel-summary"></div><div id="evidenceIntel"></div></div><details class="card"><summary><strong>Optional review controls</strong></summary><p class="hint">Change the primary finding, hide a scanner finding, add a human finding, or leave an internal note.</p><div id="candidates"></div><div id="manuals"></div><button id="addFindingBtn" class="btn light" type="button">+ Add finding</button><label class="label">Reviewer note</label><textarea id="note" style="min-height:60px"></textarea></details></div></div><div id="copyFields" hidden></div><div class="sticky"><button id="saveBtn" class="btn" type="button">Save + Regenerate Audit</button><button id="openBtn" class="btn secondary" type="button">Open Audit</button><button id="reloadBtn" class="btn light" type="button">Reload</button><button id="resetBtn" class="btn danger" type="button">Reset review</button><div class="status" id="status"></div></div></div><script>
 let state=null;let hidden=new Set();let manuals=[];let copyDraft={};
 const q=id=>document.getElementById(id);
 const COPY_GROUPS=[
@@ -132,10 +132,98 @@ function showError(error){setConnected(false);const message=error&&error.message
 function clearError(){const box=q('appError');if(box){box.textContent='';box.classList.remove('show');}}
 function money(v,c='PHP'){if(v==null)return '—';try{return new Intl.NumberFormat('en-US',{style:'currency',currency:c,maximumFractionDigits:0}).format(v)}catch{return c+' '+Math.round(v).toLocaleString()}}
 async function requestJson(url,options){const response=await fetch(url,options);let data=null;try{data=await response.json();}catch(error){throw new Error('Invalid response from Review Studio server.');}if(!response.ok||data&&data.ok===false)throw new Error(data&&data.error?data.error:'Review Studio request failed ('+response.status+').');return data;}
-async function loadState(){try{q('status').textContent='Loading…';clearError();state=await requestJson('/api/state');hidden=new Set(state.review.hideFindingIds||[]);manuals=(state.review.addFindings||[]).filter(x=>x.id!=='manual-example');copyDraft=JSON.parse(JSON.stringify(state.editableCopy||{}));q('clinic').textContent=state.clinic.name+(state.clinic.location?' · '+state.clinic.location:'');const e=state.economics||{};q('risk').textContent=e.revenueExposed?money(e.revenueExposed.low,e.currency)+(e.revenueExposed.high!==e.revenueExposed.low?'–'+money(e.revenueExposed.high,e.currency):''):'—';q('recover').textContent=e.recoverableRevenue?money(e.recoverableRevenue.conservative,e.currency)+'–'+money(e.recoverableRevenue.upside,e.currency):'—';renderCandidates();renderManuals();renderCopyFields();const p=state.currentTop?.[0]||state.candidates?.[0]||{};fillPrimary(p,state.review.primaryOpportunity);q('note').value=state.review.reviewerNote||'';q('cover').value=state.review.visuals?.coverImage||'';q('fixImage').value=state.review.visuals?.fixImage||'';q('beforeImage').value=state.review.visuals?.beforeImage||'';q('afterImage').value=state.review.visuals?.afterImage||'';setConnected(true);q('status').textContent='Ready';return state;}catch(error){showError(error);return null;}}
+async function loadState(){try{q('status').textContent='Loading…';clearError();state=await requestJson('/api/state');hidden=new Set(state.review.hideFindingIds||[]);manuals=(state.review.addFindings||[]).filter(x=>x.id!=='manual-example');copyDraft=JSON.parse(JSON.stringify(state.editableCopy||{}));q('clinic').textContent=state.clinic.name+(state.clinic.location?' · '+state.clinic.location:'');const e=state.economics||{};q('risk').textContent=e.revenueExposed?money(e.revenueExposed.low,e.currency)+(e.revenueExposed.high!==e.revenueExposed.low?'–'+money(e.revenueExposed.high,e.currency):''):'—';q('recover').textContent=e.recoverableRevenue?money(e.recoverableRevenue.conservative,e.currency)+'–'+money(e.recoverableRevenue.upside,e.currency):'—';renderCandidates();renderManuals();renderCopyFields();renderEvidenceIntelligence();const p=state.currentTop?.[0]||state.candidates?.[0]||{};fillPrimary(p,state.review.primaryOpportunity);q('note').value=state.review.reviewerNote||'';q('cover').value=state.review.visuals?.coverImage||'';q('fixImage').value=state.review.visuals?.fixImage||'';q('beforeImage').value=state.review.visuals?.beforeImage||'';q('afterImage').value=state.review.visuals?.afterImage||'';setConnected(true);q('status').textContent='Ready';return state;}catch(error){showError(error);return null;}}
 function getCopy(path){return path.split('.').reduce(function(value,key){return value==null?undefined:value[key];},copyDraft);}
 function setCopy(path,value){const parts=path.split('.');let target=copyDraft;parts.forEach(function(key,i){if(i===parts.length-1)target[key]=value;else target=target[key]||(target[key]={});});}
 function renderCopyFields(){COPY_GROUPS.forEach(function(group){const root=q(group[0]);root.replaceChildren();group[1].forEach(function(def){const wrap=make('div');wrap.appendChild(make('label','label',def[1]));const isLong=/intro|body|text|detail|disclaimer/.test(def[0]);const input=make(isLong?'textarea':'input');if(isLong)input.style.minHeight='64px';const value=getCopy(def[0]);input.value=value==null?'':String(value);input.dataset.copyPath=def[0];wrap.appendChild(input);root.appendChild(wrap);});});}
+
+function renderEvidenceIntelligence(){
+  const intel=state?.evidenceIntelligence||null;
+  const summary=q('evidenceSummary'),root=q('evidenceIntel');
+  if(!summary||!root)return;
+  summary.replaceChildren();root.replaceChildren();
+
+  if(!intel){
+    root.appendChild(make('div','intel-empty','No V2.4.1 evidence intelligence is present in this snapshot. Older scans can still be reviewed normally.'));
+    return;
+  }
+
+  const counts=intel.summary?.counts||{};
+  [
+    ['Verified',counts.verified||0],
+    ['Supported',counts.supported||0],
+    ['Unknown',counts.unknown||0],
+    ['Contradictions',intel.summary?.contradictionCount||0]
+  ].forEach(function(item){
+    const box=make('div','intel-stat');
+    box.appendChild(make('span','label',item[0]));
+    box.appendChild(make('strong','',item[1]));
+    summary.appendChild(box);
+  });
+
+  function section(title){
+    const wrap=make('div','intel-section');
+    wrap.appendChild(make('div','label',title));
+    root.appendChild(wrap);
+    return wrap;
+  }
+
+  const evidence=Array.isArray(intel.evidence)?intel.evidence:[];
+  const evidenceWrap=section('Evidence claims');
+  if(!evidence.length)evidenceWrap.appendChild(make('div','intel-empty','No scored evidence claims.'));
+  evidence.forEach(function(item){
+    const card=make('div','intel-item '+(item.tier==='unknown'?'unknown':''));
+    const head=make('div','intel-head');
+    head.appendChild(make('span','intel-badge '+(item.tier||'unknown'),item.tier||'unknown'));
+    head.appendChild(make('strong','',item.claim||item.id||'Evidence'));
+    if(item.publishable===false)head.appendChild(make('span','intel-badge block','withheld'));
+    card.appendChild(head);
+
+    if(item.value!==null&&item.value!==undefined){
+      const value=typeof item.value==='object'?JSON.stringify(item.value):String(item.value);
+      card.appendChild(make('div','intel-meta','Observed value: '+value));
+    }
+    if(item.reason)card.appendChild(make('p','intel-reason',item.reason));
+    if(Array.isArray(item.sources)&&item.sources.length)card.appendChild(make('div','intel-meta','Sources: '+item.sources.join(' · ')));
+    evidenceWrap.appendChild(card);
+  });
+
+  const contradictions=Array.isArray(intel.contradictions)?intel.contradictions:[];
+  const conflictWrap=section('Contradictions + reconciliation');
+  if(!contradictions.length)conflictWrap.appendChild(make('div','intel-empty','No contradictions detected.'));
+  contradictions.forEach(function(item){
+    const card=make('div','intel-item '+(item.blocksPublication?'blocking':''));
+    const head=make('div','intel-head');
+    head.appendChild(make('span','intel-badge block',item.blocksPublication?'reconcile before publish':'conflict'));
+    head.appendChild(make('strong','',item.title||item.id||'Contradiction'));
+    card.appendChild(head);
+    if(item.reason)card.appendChild(make('p','intel-reason',item.reason));
+    if(Array.isArray(item.positions)&&item.positions.length)card.appendChild(make('div','intel-meta','Positions: '+item.positions.join(' ↔ ')));
+    if(Array.isArray(item.sources)&&item.sources.length)card.appendChild(make('div','intel-meta','Sources: '+item.sources.join(' · ')));
+    conflictWrap.appendChild(card);
+  });
+
+  const missing=Array.isArray(intel.missingEvidence)?intel.missingEvidence:[];
+  const missingWrap=section('Missing / unverified evidence');
+  if(!missing.length)missingWrap.appendChild(make('div','intel-empty','No material evidence gaps recorded.'));
+  missing.forEach(function(item){
+    const card=make('div','intel-item unknown');
+    const head=make('div','intel-head');
+    head.appendChild(make('span','intel-badge unknown','unknown'));
+    head.appendChild(make('strong','',item.pillar||item.id||'Evidence gap'));
+    card.appendChild(head);
+    if(item.reason)card.appendChild(make('p','intel-reason',item.reason));
+    missingWrap.appendChild(card);
+  });
+
+  if((intel.summary?.blockingContradictionCount||0)>0){
+    const warning=make('div','intel-item blocking');
+    warning.appendChild(make('strong','','Human reconciliation required before relying on the affected facts.'));
+    warning.appendChild(make('p','intel-reason','The V2.4.1 intelligence layer has withheld contradicted evidence from publication-confidence status. Review the source evidence and resolve the discrepancy before treating those facts as verified.'));
+    root.prepend(warning);
+  }
+}
+
 function allCandidates(){return [...(state?.candidates||[]),...manuals.filter(x=>x.include!==false)];}
 function make(tag,className,text){const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined&&text!==null)node.textContent=String(text);return node;}
 function renderCandidates(){const selected=state.review.primaryOpportunityId||state.currentTop?.[0]?.id;const opts=allCandidates();const select=q('primarySelect');select.replaceChildren();opts.forEach(function(x){const option=make('option','',x.title||x.id);option.value=x.id;if(x.id===selected)option.selected=true;select.appendChild(option);});const root=q('candidates');root.replaceChildren();(state.candidates||[]).forEach(function(x,i){const card=make('div','candidate '+(x.id===selected?'primary-candidate':''));card.appendChild(make('div','label',i===0?'Current machine priority':'Opportunity'));card.appendChild(make('h3','',x.title));card.appendChild(make('p','',x.diagnosis||''));const row=make('div','row');const primary=make('button','btn small','Make primary');primary.type='button';primary.dataset.primaryId=x.id;const hide=make('button','btn small '+(hidden.has(x.id)?'light':'danger'),hidden.has(x.id)?'Show':'Hide');hide.type='button';hide.dataset.hideId=x.id;row.append(primary,hide);card.appendChild(row);root.appendChild(card);});}
