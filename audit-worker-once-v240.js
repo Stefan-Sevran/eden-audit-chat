@@ -104,27 +104,54 @@ async function runEvidencePipeline({ jobId, sessionId, intake, delivery }) {
 }
 
 async function main() {
+  const jobId = String(process.argv[2] || '').trim();
+
+  if (!jobId) {
+    throw new Error('A target Audit job id is required.');
+  }
+
   const worker = createAuditWorker({
     auditJobStore: store,
     runEvidencePipeline,
     workerId: `audit-oneoff-${process.pid}`
   });
 
-  console.log('Eden Audit one-off worker starting…');
+  console.log(`Eden Audit one-off worker starting for ${jobId}…`);
 
-  const result = await worker.runOnce();
+  for (;;) {
+    const result = await worker.runOnce({ jobId });
 
-  if (!result.claimed) {
-    console.log('No queued Audit job found. Exiting.');
-    return;
-  }
+    if (!result.claimed) {
+      console.log(`Audit job ${jobId} is not claimable. Exiting.`);
+      return;
+    }
 
-  console.log(
-    `Eden Audit one-off finished: ${result.jobId} → ${result.status}`
-  );
+    console.log(
+      `Eden Audit one-off attempt finished: ${result.jobId} → ${result.status}`
+    );
 
-  if (result.status !== 'review') {
+    if (result.status === 'review') {
+      console.log(
+        `Eden Audit one-off finished: ${result.jobId} → review`
+      );
+      return;
+    }
+
+    if (result.status === 'failed') {
+      process.exitCode = 1;
+      return;
+    }
+
+    if (result.status === 'queued') {
+      console.log(
+        `Audit ${jobId} requeued for retry. Retrying in 3 seconds…`
+      );
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      continue;
+    }
+
     process.exitCode = 1;
+    return;
   }
 }
 

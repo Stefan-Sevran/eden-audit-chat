@@ -59,10 +59,22 @@ function createAuditJobStore({ supabaseUrl, serviceRoleKey, fetchImpl = global.f
     };
     const data = await request('/rest/v1/audit_jobs?on_conflict=session_id', {
       method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
       body: row
     });
-    return Array.isArray(data) ? data[0] : data;
+    const created = Array.isArray(data) ? data[0] || null : data || null;
+    if (created) return created;
+
+    // Idempotency: a repeated confirmation for the same session must
+    // return the existing durable job without resetting its token,
+    // status, attempts, launch state, or scan progress.
+    const existing = await request(
+      `/rest/v1/audit_jobs?session_id=eq.${encodeURIComponent(String(sessionId))}&limit=1`
+    );
+
+    return Array.isArray(existing)
+      ? existing[0] || null
+      : existing || null;
   }
 
   async function getPublic(publicToken) {
@@ -78,6 +90,45 @@ function createAuditJobStore({ supabaseUrl, serviceRoleKey, fetchImpl = global.f
       method: 'POST',
       body: { p_worker_id: String(workerId) }
     });
+    return Array.isArray(data) ? data[0] || null : data || null;
+  }
+
+  async function claimById(jobId, workerId = `worker-${process.pid}`) {
+    if (!jobId) throw new Error('Audit job id is required.');
+
+    const data = await request('/rest/v1/rpc/claim_audit_job_by_id', {
+      method: 'POST',
+      body: {
+        p_job_id: String(jobId),
+        p_worker_id: String(workerId)
+      }
+    });
+
+    return Array.isArray(data) ? data[0] || null : data || null;
+  }
+
+  async function reserveLaunch({
+    publicToken,
+    ipHash = '',
+    domain = '',
+    ipLimit = 3,
+    globalLimit = 50,
+    domainCooldownHours = 24
+  } = {}) {
+    if (!publicToken) throw new Error('Audit public token is required.');
+
+    const data = await request('/rest/v1/rpc/reserve_audit_launch', {
+      method: 'POST',
+      body: {
+        p_public_token: String(publicToken),
+        p_ip_hash: String(ipHash || ''),
+        p_domain: String(domain || ''),
+        p_ip_limit: Number(ipLimit),
+        p_global_limit: Number(globalLimit),
+        p_domain_cooldown_hours: Number(domainCooldownHours)
+      }
+    });
+
     return Array.isArray(data) ? data[0] || null : data || null;
   }
 
@@ -178,6 +229,8 @@ function createAuditJobStore({ supabaseUrl, serviceRoleKey, fetchImpl = global.f
     getPublic,
     publicView,
     claim,
+    claimById,
+    reserveLaunch,
     update,
     markReview,
     markPublished,

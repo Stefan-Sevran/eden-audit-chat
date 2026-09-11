@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const express = require("express");
 const cors = require("cors");
 
@@ -76,8 +77,57 @@ const { createAuditEvidenceReview } = require("./audits/durable/audit-evidence-r
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(cors());
 app.use(express.json());
+
+const auditRequesterHashBySession = {};
+
+function auditRequesterHash(req) {
+  const secret = String(
+    process.env.EDEN_AUDIT_IP_HASH_SECRET ||
+    process.env.EDEN_AUDIT_LAUNCH_KEY ||
+    ""
+  );
+
+  if (!secret) return "";
+
+  const ip = String(req.ip || "").trim();
+  if (!ip) return "";
+
+  return crypto
+    .createHmac("sha256", secret)
+    .update(ip)
+    .digest("hex");
+}
+
+app.use((req, res, next) => {
+  if (
+    req.path === "/audit-chat" ||
+    req.path === "/audit-voice-intake" ||
+    req.path === "/audit-realtime-call"
+  ) {
+    const sessionId = String(
+      req.body?.sessionId ||
+      req.query?.sessionId ||
+      ""
+    ).trim();
+
+    if (sessionId) {
+      const hash = auditRequesterHash(req);
+
+      if (hash) {
+        auditRequesterHashBySession[sessionId] = {
+          hash,
+          seenAt: Date.now()
+        };
+      }
+    }
+  }
+
+  next();
+});
 app.use(express.static("public"));
 
 const VERIFY_TOKEN = "eden_verify_123";
@@ -124,7 +174,29 @@ const enqueueConfirmedAuditV240 = createConfirmedAuditJobHook({
   auditJobStore: auditJobStoreV240
 });
 
-async function launchAuditOneOffV240() {
+function auditClinicDomain(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    const url = new URL(
+      /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    );
+
+    return String(url.hostname || "")
+      .toLowerCase()
+      .replace(/^www\./, "");
+  } catch (_) {
+    return "";
+  }
+}
+
+async function launchAuditOneOffV240(jobId) {
+  const targetJobId = String(jobId || "").trim();
+
+  if (!targetJobId) {
+    throw new Error("A target Audit job id is required for Render launch.");
+  }
   const renderApiKey = String(process.env.RENDER_API_KEY || "");
 
   if (!renderApiKey) {
@@ -144,7 +216,7 @@ async function launchAuditOneOffV240() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        startCommand: "node audit-worker-once-v240.js",
+        startCommand: `node audit-worker-once-v240.js ${targetJobId}`,
         planId: "plan-srv-008"
       })
     }
@@ -285,18 +357,88 @@ const auditIntakeV232 = createAuditIntake({
         })
       : null;
 
-    if (auditJob?.status === "queued") {
-      try {
-        await launchAuditOneOffV240();
-      } catch (error) {
-        console.error(
-          "AUDIT ONE-OFF LAUNCH FAILED:",
-          snapshot.auditReference,
-          error.message,
-          error.renderData || ""
+    if (auditJob?.status === "queued" && auditJob?.publicToken) {
+      const launchEnabled =
+        String(process.env.EDEN_AUDIT_LAUNCH_ENABLED || "true")
+          .toLowerCase() !== "false";
+
+      if (!launchEnabled) {
+        console.warn(
+          "AUDIT ONE-OFF LAUNCH DISABLED:",
+          snapshot.auditReference
         );
-        // The confirmed Audit remains durable in audit_jobs as queued.
-        // Launcher failure must never invalidate the clinic intake.
+      } else {
+        const requester = auditRequesterHashBySession[sessionId] || null;
+        const ipHash = requester?.hash || "";
+        const domain = auditClinicDomain(fields.websiteUrl);
+
+        try {
+          const reservation = await auditJobStoreV240.reserveLaunch({
+            publicToken: auditJob.publicToken,
+            ipHash,
+            domain,
+            ipLimit: Number(
+              process.env.EDEN_AUDIT_IP_DAILY_LIMIT || 3
+            ),
+            globalLimit: Number(
+              process.env.EDEN_AUDIT_GLOBAL_DAILY_LIMIT || 50
+            ),
+            domainCooldownHours: Number(
+              process.env.EDEN_AUDIT_DOMAIN_COOLDOWN_HOURS || 24
+            )
+          });
+
+          if (reservation?.allowed === true && reservation?.job_id) {
+            try {
+              const renderJob = await launchAuditOneOffV240(
+                reservation.job_id
+              );
+
+              await auditJobStoreV240.update(
+                reservation.job_id,
+                {
+                  launch_state: "launched",
+                  render_job_id: renderJob?.id || null,
+                  launch_error: null
+                }
+              );
+            } catch (error) {
+              await auditJobStoreV240.update(
+                reservation.job_id,
+                {
+                  launch_state: "failed",
+                  launch_error: String(
+                    error.message || error || "Render launch failed"
+                  ).slice(0, 1000)
+                }
+              ).catch(updateError =>
+                console.error(
+                  "AUDIT LAUNCH FAILURE STATE UPDATE FAILED:",
+                  updateError.message
+                )
+              );
+
+              console.error(
+                "AUDIT ONE-OFF LAUNCH FAILED:",
+                snapshot.auditReference,
+                error.message,
+                error.renderData || ""
+              );
+            }
+          } else {
+            console.warn(
+              "AUDIT ONE-OFF BLOCKED:",
+              snapshot.auditReference,
+              reservation?.reason || "launch_not_allowed"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "AUDIT LAUNCH RESERVATION FAILED:",
+            snapshot.auditReference,
+            error.message
+          );
+        }
       }
     }
 
@@ -4940,10 +5082,24 @@ app.post('/api/audit-launch-oneoff', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Unauthorized.' });
     }
 
-    const data = await launchAuditOneOffV240();
+    const jobId = String(
+      req.body?.jobId ||
+      req.query?.jobId ||
+      ""
+    ).trim();
+
+    if (!jobId) {
+      return res.status(400).json({
+        ok: false,
+        error: "jobId is required."
+      });
+    }
+
+    const data = await launchAuditOneOffV240(jobId);
 
     return res.status(201).json({
       ok: true,
+      targetJobId: jobId,
       job: data
     });
   } catch (error) {

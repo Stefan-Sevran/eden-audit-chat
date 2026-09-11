@@ -4,8 +4,12 @@ function createAuditWorker({ auditJobStore, runEvidencePipeline, workerId = `aud
   if (!auditJobStore) throw new Error('auditJobStore is required.');
   if (typeof runEvidencePipeline !== 'function') throw new Error('runEvidencePipeline callback is required.');
 
-  async function runOnce() {
-    const job = await auditJobStore.claim(workerId);
+  async function runOnce({ jobId = null } = {}) {
+    const job =
+      jobId && typeof auditJobStore.claimById === 'function'
+        ? await auditJobStore.claimById(jobId, workerId)
+        : await auditJobStore.claim(workerId);
+
     if (!job) return { claimed: false };
     let heartbeat = null;
 
