@@ -124,6 +124,58 @@ const enqueueConfirmedAuditV240 = createConfirmedAuditJobHook({
   auditJobStore: auditJobStoreV240
 });
 
+async function launchAuditOneOffV240() {
+  const renderApiKey = String(process.env.RENDER_API_KEY || "");
+
+  if (!renderApiKey) {
+    throw new Error("RENDER_API_KEY is not configured.");
+  }
+
+  const serviceId =
+    process.env.RENDER_BASE_SERVICE_ID ||
+    "srv-d8hbeea8pkls73c8lq2g";
+
+  const response = await fetch(
+    `https://api.render.com/v1/services/${serviceId}/jobs`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${renderApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        startCommand: "node audit-worker-once-v240.js",
+        planId: "plan-srv-008"
+      })
+    }
+  );
+
+  const text = await response.text();
+  let data = null;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch (_) {
+    data = { raw: text };
+  }
+
+  if (!response.ok) {
+    const error = new Error(
+      `Render one-off launch failed (${response.status}).`
+    );
+    error.renderStatus = response.status;
+    error.renderData = data;
+    throw error;
+  }
+
+  console.log(
+    "Render one-off Audit launched:",
+    data?.id || data
+  );
+
+  return data;
+}
+
 const auditEvidenceReviewV240 = createAuditEvidenceReview({
   supabaseUrl: SUPABASE_URL,
   serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
@@ -232,6 +284,21 @@ const auditIntakeV232 = createAuditIntake({
           source: "mia-v232g-confirmed-intake"
         })
       : null;
+
+    if (auditJob?.status === "queued") {
+      try {
+        await launchAuditOneOffV240();
+      } catch (error) {
+        console.error(
+          "AUDIT ONE-OFF LAUNCH FAILED:",
+          snapshot.auditReference,
+          error.message,
+          error.renderData || ""
+        );
+        // The confirmed Audit remains durable in audit_jobs as queued.
+        // Launcher failure must never invalidate the clinic intake.
+      }
+    }
 
     return {
       ok: true,
@@ -4866,7 +4933,6 @@ if (require.main === module) {
 
 app.post('/api/audit-launch-oneoff', async (req, res) => {
   try {
-    const renderApiKey = String(process.env.RENDER_API_KEY || '');
     const launchKey = String(process.env.EDEN_AUDIT_LAUNCH_KEY || '');
     const suppliedKey = String(req.get('x-eden-launch-key') || '');
 
@@ -4874,57 +4940,20 @@ app.post('/api/audit-launch-oneoff', async (req, res) => {
       return res.status(401).json({ ok: false, error: 'Unauthorized.' });
     }
 
-    if (!renderApiKey) {
-      return res.status(503).json({ ok: false, error: 'Render API is not configured.' });
-    }
-
-    const serviceId =
-      process.env.RENDER_BASE_SERVICE_ID ||
-      'srv-d8hbeea8pkls73c8lq2g';
-
-    const response = await fetch(
-      `https://api.render.com/v1/services/${serviceId}/jobs`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${renderApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          startCommand: 'node audit-worker-once-v240.js',
-          planId: 'plan-srv-008'
-        })
-      }
-    );
-
-    const text = await response.text();
-    let data = null;
-
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch (_) {
-      data = { raw: text };
-    }
-
-    if (!response.ok) {
-      console.error('Render one-off launch failed:', response.status, data);
-      return res.status(502).json({
-        ok: false,
-        error: 'Render one-off launch failed.',
-        renderStatus: response.status,
-        render: data
-      });
-    }
-
-    console.log('Render one-off Audit launched:', data?.id || data);
+    const data = await launchAuditOneOffV240();
 
     return res.status(201).json({
       ok: true,
       job: data
     });
   } catch (error) {
-    console.error('Audit one-off launcher error:', error);
-    return res.status(500).json({
+    console.error(
+      'Audit one-off launcher error:',
+      error.message,
+      error.renderData || ''
+    );
+
+    return res.status(502).json({
       ok: false,
       error: error.message
     });
