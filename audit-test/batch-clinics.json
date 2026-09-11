@@ -1,0 +1,9 @@
+{
+  "clinics": [
+    {
+      "slug": "digital-dental-pattaya",
+      "label": "Digital Dental Pattaya",
+      "enabled": true
+    }
+  ]
+}

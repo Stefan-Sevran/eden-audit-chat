@@ -117,12 +117,23 @@ app.use((req, res, next) => {
     if (sessionId) {
       const hash = auditRequesterHash(req);
 
-      if (hash) {
-        auditRequesterHashBySession[sessionId] = {
-          hash,
-          seenAt: Date.now()
-        };
-      }
+      const benchmarkKey = String(
+        process.env.EDEN_AUDIT_BENCHMARK_KEY || ""
+      );
+
+      const suppliedBenchmarkKey = String(
+        req.get("x-eden-benchmark-key") || ""
+      );
+
+      const benchmark =
+        Boolean(benchmarkKey) &&
+        suppliedBenchmarkKey === benchmarkKey;
+
+      auditRequesterHashBySession[sessionId] = {
+        hash,
+        benchmark,
+        seenAt: Date.now()
+      };
     }
   }
 
@@ -369,23 +380,39 @@ const auditIntakeV232 = createAuditIntake({
         );
       } else {
         const requester = auditRequesterHashBySession[sessionId] || null;
-        const ipHash = requester?.hash || "";
-        const domain = auditClinicDomain(fields.websiteUrl);
+        const benchmark = requester?.benchmark === true;
+
+        const ipHash = benchmark
+          ? ""
+          : requester?.hash || "";
+
+        const domain = benchmark
+          ? ""
+          : auditClinicDomain(fields.websiteUrl);
+
+        if (benchmark) {
+          console.log(
+            "EDEN BENCHMARK BYPASS:",
+            snapshot.auditReference
+          );
+        }
 
         try {
           const reservation = await auditJobStoreV240.reserveLaunch({
             publicToken: auditJob.publicToken,
             ipHash,
             domain,
-            ipLimit: Number(
-              process.env.EDEN_AUDIT_IP_DAILY_LIMIT || 3
-            ),
-            globalLimit: Number(
-              process.env.EDEN_AUDIT_GLOBAL_DAILY_LIMIT || 50
-            ),
-            domainCooldownHours: Number(
-              process.env.EDEN_AUDIT_DOMAIN_COOLDOWN_HOURS || 24
-            )
+            ipLimit: benchmark
+              ? 1000000
+              : Number(process.env.EDEN_AUDIT_IP_DAILY_LIMIT || 3),
+            globalLimit: benchmark
+              ? 1000000
+              : Number(process.env.EDEN_AUDIT_GLOBAL_DAILY_LIMIT || 50),
+            domainCooldownHours: benchmark
+              ? 0
+              : Number(
+                  process.env.EDEN_AUDIT_DOMAIN_COOLDOWN_HOURS || 24
+                )
           });
 
           if (reservation?.allowed === true && reservation?.job_id) {
