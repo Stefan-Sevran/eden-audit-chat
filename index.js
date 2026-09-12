@@ -351,10 +351,6 @@ const auditIntakeV232 = createAuditIntake({
       );
     }
 
-    if (!sheetsResult.ok && !telegramResult.ok) {
-      throw new Error("No durable Audit intake destination accepted the submission");
-    }
-
     const auditJob = auditJobStoreV240.configured
       ? await enqueueConfirmedAuditV240({
           sessionId,
@@ -367,6 +363,12 @@ const auditIntakeV232 = createAuditIntake({
           source: "mia-v232g-confirmed-intake"
         })
       : null;
+
+    // Supabase audit_jobs is Eden's primary durable system of record.
+    // Google Sheets and Telegram are optional operational mirrors.
+    if (!auditJob && !sheetsResult.ok && !telegramResult.ok) {
+      throw new Error("No durable Audit intake destination accepted the submission");
+    }
 
     if (auditJob?.status === "queued" && auditJob?.publicToken) {
       const launchEnabled =
